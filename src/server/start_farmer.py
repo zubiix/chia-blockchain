@@ -2,6 +2,8 @@ import asyncio
 import signal
 import logging
 
+from src.util.keychain import Keychain
+
 try:
     import uvloop
 except ImportError:
@@ -31,7 +33,9 @@ async def async_main():
     log = logging.getLogger(__name__)
     setproctitle("chia_farmer")
 
-    farmer = Farmer(config, key_config)
+    keychain = Keychain.create()
+
+    farmer = Farmer(config, keychain)
 
     ping_interval = net_config.get("ping_interval")
     network_id = net_config.get("network_id")

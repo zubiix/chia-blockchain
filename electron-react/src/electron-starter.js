@@ -108,20 +108,21 @@ const createWindow = () => {
         nodeIntegration: true
     },})
 
-  query = "?testing="+local_test + "&wallet_id=1"
+  var startUrl = process.env.ELECTRON_START_URL || url.format({
+        pathname: path.join(__dirname, '/../build/index.html'),
+        protocol: 'file:',
+        slashes: true
+    });
+   console.log(startUrl)
+  startUrl += "?testing="+local_test + "&wallet_id=1"
 
-  mainWindow.loadURL(require('url').format({
-    pathname: path.join(__dirname, wallet_ui_html),
-    protocol: 'file:',
-    slashes: true
-  }) + query
-  )
+  mainWindow.loadURL(startUrl);
 
   mainWindow.once('ready-to-show', function (){
         mainWindow.show();
   });
 
-  if (local_test) {
+  if (!local_test) {
     mainWindow.webContents.openDevTools()
   }
 

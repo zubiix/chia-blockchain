@@ -10,6 +10,7 @@ import traceback
 from src.full_node.full_node import OutboundMessageGenerator
 from src.types.peer_info import PeerInfo
 from src.util.byte_types import hexstr_to_bytes
+from src.util.keychain import Keychain
 from src.util.merkle_set import (
     confirm_included_already_hashed,
     confirm_not_included_already_hashed,
@@ -74,11 +75,10 @@ class WalletNode:
 
     @staticmethod
     async def create(
-        config: Dict, key_config: Dict, name: str = None, override_constants: Dict = {},
+        config: Dict, keychain: Keychain, name: str = None, override_constants: Dict = {},
     ):
         self = WalletNode()
         self.config = config
-        self.key_config = key_config
         self.constants = consensus_constants.copy()
         for key, value in override_constants.items():
             self.constants[key] = value
@@ -91,7 +91,7 @@ class WalletNode:
         mkdir(path.parent)
 
         self.wallet_state_manager = await WalletStateManager.create(
-            key_config, config, path, self.constants
+            keychain, config, path, self.constants
         )
         self.wallet_state_manager.set_pending_callback(self._pending_tx_handler)
 
