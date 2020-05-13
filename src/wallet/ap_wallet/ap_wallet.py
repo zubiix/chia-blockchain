@@ -28,8 +28,7 @@ from src.wallet.wallet import Wallet
 from src.wallet.wallet_coin_record import WalletCoinRecord
 from src.wallet.wallet_info import WalletInfo
 from src.wallet.derivation_record import DerivationRecord
-from src.wallet.cc_wallet import cc_wallet_puzzles
-from clvm import run_program
+from src.wallet.ap_wallet import ap_puzzles
 
 
 class APWallet:
@@ -106,19 +105,23 @@ class APWallet:
         self.log.info(f"Unconfirmed balance for ap wallet is {result}")
         return uint64(result)
 
+    async def add_contact(self, name, puzzle, new_signature):
+        current_contacts = self.ap_info.contacts
+        current_contacts.append((name, puzzle))
+        old_signature = self.ap_info.authorised_signature
+        new_signature = new_signature.aggregate([old_signature, new_signature])
+        new_ap_info = APInfo(self.ap_info.authoriser_pubkey, current_contacts, new_signature)
+        self.save_info(new_ap_info)
+        return
+
+    def get_contacts(self):
+        return self.ap_info.contacts
+
     def puzzle_for_pk(self, pubkey) -> Program:
-        inner_puzzle_hash = self.standard_wallet.puzzle_for_pk(
-            bytes(pubkey)
-        ).get_tree_hash()
-        if self.base_puzzle_program is None:
-            cc_puzzle: Program = cc_wallet_puzzles.cc_make_puzzle(
-                inner_puzzle_hash, self.cc_info.my_core
-            )
-            self.base_puzzle_program = bytes(cc_puzzle)
-            self.base_inner_puzzle_hash = inner_puzzle_hash
-        else:
-            cc_puzzle = self.fast_cc_puzzle(inner_puzzle_hash)
-        return cc_puzzle
+        ap_puzzle: Program = ap_puzzles.ap_make_puzzle(
+            self.ap_info.authoriser_pubkey, pubkey
+        )
+        return ap_puzzle
 
     async def get_new_puzzle_hash(self):
         return (
@@ -175,16 +178,63 @@ class APWallet:
             self.log.info(f"Successfully selected coins: {used_coins}")
             return used_coins
 
-    async def ap_spend(
-        self, amount: uint64, to_address: bytes32
-    ) -> Optional[SpendBundle]:
-        spend_bundle = SpendBundle()
+    # this is for sending a recieved ap coin, not creating a new ap coin
+    def ap_generate_unsigned_transaction(self, puzzlehash_amount_list):
+        # we only have/need one coin in this wallet at any time - this code can be improved
+        spends = []
+        coin = self.temp_coin
+        puzzle_hash = coin.puzzle_hash
+
+        pubkey, secretkey = self.get_keys(puzzle_hash, self.a_pubkey)
+        puzzle = ap_puzzles.ap_make_puzzle(self.a_pubkey, bytes(pubkey))
+        solution = self.ap_make_solution_mode_1(
+            puzzlehash_amount_list, coin.parent_coin_info, puzzle_hash)
+        spends.append((puzzle, CoinSolution(coin, solution)))
+        return spends
+
+    # this allows wallet A to approve of new puzzlehashes/spends from wallet B that weren't in the original list
+    def ap_sign_output_newpuzzlehash(self, puzzlehash, newpuzzlehash, b_pubkey_used):
+        pubkey, secretkey = self.get_keys(puzzlehash, None, b_pubkey_used)
+        signature = secretkey.sign(newpuzzlehash)
+        return signature
+
+    # this is for sending a locked coin
+    # Wallet B must sign the whole transaction, and the appropriate puzhash signature from A must be included
+    def ap_sign_transaction(self, spends: (Program, [CoinSolution]), signatures_from_a):
+        sigs = []
+        for puzzle, solution in spends:
+            pubkey, secretkey = self.get_keys(
+                solution.coin.puzzle_hash, self.a_pubkey)
+            signature = secretkey.sign(
+                Program(solution.solution).get_tree_hash())
+            sigs.append(signature)
+        for s in signatures_from_a:
+            sigs.append(s)
+        aggsig = BLSSignature.aggregate(sigs)
+        solution_list = [CoinSolution(coin_solution.coin, clvm.to_sexp_f([puzzle, coin_solution.solution])) for (puzzle, coin_solution) in spends]
+        spend_bundle = SpendBundle(solution_list, aggsig)
         return spend_bundle
 
-    async def save_info(self, cc_info: CCInfo):
-        self.cc_info = cc_info
+    # this is for sending a recieved ap coin, not sending a new ap coin
+    def ap_generate_signed_transaction(self, amount, puzzlehash):
+
+        # calculate amount of transaction and change
+        coins = self.select_coins(amount)
+        if coins is None or coins == set():
+            return None
+
+        change = sum([coin.amount for coin in coins]) - amount
+        puzzlehash_amount_list = [(puzzlehash, amount), (self.AP_puzzlehash, change)]
+        transaction = self.ap_generate_unsigned_transaction(
+            puzzlehash_amount_list)
+        self.temp_coin = Coin(self.temp_coin, self.temp_coin.puzzle_hash,
+                              change)
+        return self.ap_sign_transaction(transaction, self.ap_info.authorised_signature)
+
+    async def save_info(self, ap_info: APInfo):
+        self.cc_info = ap_info
         current_info = self.wallet_info
-        data_str = bytes(cc_info).hex()
+        data_str = bytes(ap_info).hex()
         wallet_info = WalletInfo(
             current_info.id, current_info.name, current_info.type, data_str
         )

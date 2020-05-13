@@ -37,7 +37,7 @@ def ap_make_puzzle(a_pubkey_serialized, b_pubkey_serialized):
     puz = f"((c (q (c (c (q 50) (c (q {b_pubkey}) (c ((c (r (f (a))) (c (f (a)) (c (c (f (r (a))) (c (f (r (r (a)))) (c (f (r (r (r (a))))) (c (f (r (r (r (r (a)))))) (c (f (r (r (r (r (r (a))))))) (c (f (r (r (r (r (r (r (a)))))))) (c (f (r (r (r (r (r (r (r (a))))))))) (q ())))))))) (q ()))))) (q ())))) ((c (i (f (r (a))) (q ((c (f (f (a))) (c (f (a)) (c ((c (f (r (r (a)))) (f (r (r (r (a))))))) (c (q ()) (c (f (r (r (r (r (a)))))) (c (f (r (r (r (r (r (a))))))) (q (())))))))))) (q (c (c (q 53) (c (sha256 (f (r (r (r (r (r (r (a)))))))) (f (r (r (a)))) (f (r (r (r (r (r (r (r (a)))))))))) (q ()))) (c (c (q 51) (c ((c (r (f (a))) (c (f (a)) (c (c (q 7) (c (c (q 5) (c (c (q 1) (c (sha256 (f (r (r (r (a))))) (f (r (r (r (r (a)))))) (f (r (r (r (r (r (a)))))))) (q ()))) (q ((q ()))))) (q ()))) (q ()))))) (q (())))) (c (c (q 51) (c (f (r (r (a)))) (c (+ (f (r (r (r (r (r (a))))))) (f (r (r (r (r (r (r (r (a)))))))))) (q ())))) (q ())))))) (a))))) (c (q (((c (i (l (f (r (a)))) (q ((c (i (= (f (f (f (r (a))))) (q 51)) (q ((c (f (f (a))) (c (f (a)) (c (r (f (r (a)))) (c (c (f (f (r (a)))) (c (c (q 50) (c (q {a_pubkey}) (c (f (r (f (f (r (a)))))) (q ())))) (f (r (r (a)))))) (c (f (r (r (r (a))))) (c (f (r (r (r (r (a)))))) (c (+ (f (r (r (f (f (r (a))))))) (f (r (r (r (r (r (a)))))))) (q ())))))))))) (q ((c (f (f (a))) (c (f (a)) (c (r (f (r (a)))) (c (c (f (f (r (a)))) (f (r (r (a))))) (c (f (r (r (r (a))))) (c (f (r (r (r (r (a)))))) (c (f (r (r (r (r (r (a))))))) (q ()))))))))))) (a)))) (q (c (c (q 53) (c (sha256 (f (r (r (r (a))))) (f (r (r (r (r (a)))))) (f (r (r (r (r (r (a)))))))) (q ()))) (f (r (r (a))))))) (a))) (c (i (l (f (r (a)))) (q (sha256 (q 2) ((c (r (f (a))) (c (f (a)) (c (f (f (r (a)))) (q ()))))) ((c (r (f (a))) (c (f (a)) (c (r (f (r (a)))) (q ()))))))) (q (sha256 (q 1) (f (r (a)))))) (a)))) (a))))"
 
     return Program(binutils.assemble(puz))
-    
+
 
 def ap_make_aggregation_puzzle(wallet_puzzle):
     # If Wallet A wants to send further funds to Wallet B then they can lock them up using this code
@@ -64,6 +64,26 @@ def ap_get_aggregation_puzzlehash(wallet_puzzle):
 def ap_sign_output_newpuzzlehash(newpuzzlehash, a_wallet, a_pubkey_used):
     signature = a_wallet.sign(newpuzzlehash, a_pubkey_used)
     return signature
+
+
+# creates the solution that will allow wallet B to spend the coin
+# Wallet B is allowed to make multiple spends but must spend the coin in its entirety
+def ap_make_solution_mode_1(self, outputs=[], my_primary_input, my_puzzle_hash):
+    sol = "(1 (a) ("
+    for puzhash, amount in outputs:
+        sol += f"(0x{ConditionOpcode.CREATE_COIN.hex()} 0x{puzhash.hex()} {amount})"
+    sol += f") 0x{my_primary_input.hex()} 0x{my_puzzle_hash.hex()} () ())"
+    return Program(binutils.assemble(sol))
+
+
+def ac_make_aggregation_solution(self, myid, wallet_coin_primary_input, wallet_coin_amount):
+    sol = f"(0x{myid.hex()} 0x{wallet_coin_primary_input.hex()} {wallet_coin_amount})"
+    return Program(binutils.assemble(sol))
+
+
+def ap_make_solution_mode_2(self, wallet_puzzle_hash, consolidating_primary_input, consolidating_coin_puzzle_hash, outgoing_amount, my_primary_input, incoming_amount):
+    sol = f"(() 0x{wallet_puzzle_hash.hex()} 0x{consolidating_primary_input.hex()} 0x{consolidating_coin_puzzle_hash.hex()} {outgoing_amount} 0x{my_primary_input.hex()} {incoming_amount})"
+    return Program(binutils.assemble(sol))
 
 
 """
