@@ -222,8 +222,17 @@ class APWallet:
         coins = self.select_coins(amount)
         if coins is None or coins == set():
             return None
-
         change = sum([coin.amount for coin in coins]) - amount
+
+        # We could take this out and just let the transaction fail, but its probably better to have the sanity check
+        found = False
+        for name_address in self.ap_info.contacts:
+            if puzzlehash == name_address[1]:
+                found = True
+                break
+        if found is False:
+            return None
+
         puzzlehash_amount_list = [(puzzlehash, amount), (self.AP_puzzlehash, change)]
         transaction = self.ap_generate_unsigned_transaction(
             puzzlehash_amount_list)
