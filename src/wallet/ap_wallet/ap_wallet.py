@@ -29,6 +29,7 @@ from src.wallet.wallet_coin_record import WalletCoinRecord
 from src.wallet.wallet_info import WalletInfo
 from src.wallet.derivation_record import DerivationRecord
 from src.wallet.ap_wallet import ap_puzzles
+from blspy import PublicKey
 
 
 class APWallet:
@@ -43,7 +44,7 @@ class APWallet:
 
     @staticmethod
     async def create_wallet_for_ap(
-        wallet_state_manager: Any, wallet: Wallet, name: str = None
+        wallet_state_manager: Any, wallet: Wallet, authoriser_pubkey: PublicKey, name: str = None
     ):
 
         self = APWallet()
@@ -56,17 +57,42 @@ class APWallet:
             self.log = logging.getLogger(__name__)
 
         self.wallet_state_manager = wallet_state_manager
-
-        self.ap_info = APInfo([], None)
-        info_as_string = bytes(self.cc_info).hex()
+        self.ap_info = APInfo(bytes(authoriser_pubkey), None, [], None)
+        info_as_string = bytes(self.ap_info).hex()
         self.wallet_info = await wallet_state_manager.user_store.create_wallet(
-            "CC Wallet", WalletType.COLOURED_COIN, info_as_string
+            "AP Wallet", WalletType.COLOURED_COIN, info_as_string
         )
         if self.wallet_info is None:
             raise
-
         await self.wallet_state_manager.add_new_wallet(self, self.wallet_info.id)
+        devrec = await self.wallet_state_manager.get_unused_derivation_record(self.wallet_info.id)
+        pubkey = devrec.pubkey
+        self.ap_info = APInfo(bytes(authoriser_pubkey), bytes(pubkey), [], None)
         return self
+
+    async def set_sender_values(self, a_pubkey_used):
+        ap_info = APInfo(a_pubkey_used, self.ap_info.contacts, self.ap_info.authorised_signature)
+        puzzlehash = self.puzzle_for_pk(self.ap_info.my_pubkey)
+        index = await self.wallet_state_manager.wallet_puzzle_store.index_for_pubkey(self.ap_info.my_pubkey)
+        derivation_paths = [
+            DerivationRecord(
+                uint32(index),
+                puzzlehash,
+                self.ap_info.my_pubkey,
+                self.wallet_info.type,
+                uint32(self.wallet_info.id),
+            )
+        ]
+
+        await self.wallet_state_manager.puzzle_store.add_derivation_paths(derivation_paths)
+        self.save_info(ap_info)
+        return
+
+    async def coin_added(
+        self, coin: Coin, height: int, header_hash: bytes32, removals: List[Coin]
+    ):
+
+        return
 
     async def get_confirmed_balance(self) -> uint64:
         record_list: Set[
@@ -77,9 +103,7 @@ class APWallet:
 
         amount: uint64 = uint64(0)
         for record in record_list:
-            parent = await self.get_parent_for_coin(record.coin)
-            if parent is not None:
-                amount = uint64(amount + record.coin.amount)
+            amount = uint64(amount + record.coin.amount)
 
         self.log.info(f"Confirmed balance for ap wallet is {amount}")
         return uint64(amount)
