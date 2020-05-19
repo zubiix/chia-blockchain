@@ -21,7 +21,7 @@
         )
 
         (defmacro aggsig_entire_solution SOLUTION
-          (q (c (q 50) (c (q "B_PUBKEY") (c (sha256tree1 (a)) (q ())))))
+          (q (c (q 57) (c (q "B_PUBKEY") (c (sha256tree1 (a)) (q ())))))
         )
 
         (defun aggsig_outputs_and_assert_my_value (loop my_output my_parent my_puzzle running_sum)

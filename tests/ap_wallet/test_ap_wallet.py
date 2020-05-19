@@ -101,8 +101,8 @@ class TestWalletSimulator:
         ap_pubkey_b = ap_wallet.ap_info.my_pubkey
 
         ap_puz = ap_puzzles.ap_make_puzzle(ap_pubkey_a, ap_pubkey_b)
-
-        ap_wallet.set_sender_values(ap_pubkey_a)
+        sig = await wallet.sign(bytes(ap_puz), bytes(ap_pubkey_a))
+        await ap_wallet.set_sender_values(ap_pubkey_a, sig)
 
         tx = await wallet.generate_signed_transaction(100, ap_puz.get_tree_hash())
         await wallet.push_transaction(tx)

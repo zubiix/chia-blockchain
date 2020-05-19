@@ -75,12 +75,17 @@ class APWallet:
         self.ap_info = APInfo(bytes(authoriser_pubkey), bytes(pubkey), [], None)
         return self
 
-    async def set_sender_values(self, a_pubkey_used):
-        ap_info = APInfo(
-            a_pubkey_used, self.ap_info.contacts, self.ap_info.authorised_signature
-        )
-        puzzlehash = self.puzzle_for_pk(self.ap_info.my_pubkey)
-        index = await self.wallet_state_manager.wallet_puzzle_store.index_for_pubkey(
+    async def set_sender_values(self, a_pubkey_used, sig=None):
+        if sig is not None:
+            ap_info = APInfo(
+                a_pubkey_used, self.ap_info.my_pubkey, self.ap_info.contacts, sig
+            )
+        else:
+            ap_info = APInfo(
+                a_pubkey_used, self.ap_info.my_pubkey, self.ap_info.contacts, self.ap_info.authorised_signature
+            )
+        puzzlehash = self.puzzle_for_pk(self.ap_info.my_pubkey).get_tree_hash()
+        index = await self.wallet_state_manager.puzzle_store.index_for_pubkey(
             self.ap_info.my_pubkey
         )
         derivation_paths = [
@@ -96,7 +101,7 @@ class APWallet:
         await self.wallet_state_manager.puzzle_store.add_derivation_paths(
             derivation_paths
         )
-        self.save_info(ap_info)
+        await self.save_info(ap_info)
         return
 
     async def coin_added(
@@ -242,7 +247,7 @@ class APWallet:
         sigs = []
         for puzzle, solution in spends:
             pubkey, secretkey = self.get_keys(solution.coin.puzzle_hash, self.a_pubkey)
-            signature = secretkey.sign(Program(solution.solution).get_tree_hash())
+            signature = secretkey.sign(Program(solution.solution).get_tree_hash().hex() + CoinSolution.coin.name())
             sigs.append(signature)
         for s in signatures_from_a:
             sigs.append(s)
