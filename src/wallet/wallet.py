@@ -391,7 +391,8 @@ class Wallet:
     async def sign(self, value, pubkey):
         index = await self.wallet_state_manager.puzzle_store.index_for_pubkey(pubkey)
         private = self.wallet_state_manager.private_key.private_child(index).get_private_key()
-        return private.sign(value)
+        pk = BLSPrivateKey(private)
+        return pk.sign(value)
 
     # Create an offer spend bundle for chia given an amount of relative change (i.e -400 or 1000)
     # This is to be aggregated together with a coloured coin offer to ensure that the trade happens

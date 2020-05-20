@@ -15,6 +15,7 @@ from src.consensus.block_rewards import calculate_base_fee, calculate_block_rewa
 from src.wallet.ap_wallet.ap_wallet import APWallet
 from src.wallet.ap_wallet import ap_puzzles
 from src.wallet.wallet_coin_record import WalletCoinRecord
+from src.wallet.transaction_record import TransactionRecord
 from typing import List
 
 
@@ -102,8 +103,9 @@ class TestWalletSimulator:
 
         ap_puz = ap_puzzles.ap_make_puzzle(ap_pubkey_a, ap_pubkey_b)
         sig = await wallet.sign(bytes(ap_puz), bytes(ap_pubkey_a))
+        assert sig is not None
         await ap_wallet.set_sender_values(ap_pubkey_a, sig)
-
+        assert ap_wallet.ap_info.authorised_signature is not None
         tx = await wallet.generate_signed_transaction(100, ap_puz.get_tree_hash())
         await wallet.push_transaction(tx)
 
@@ -112,3 +114,37 @@ class TestWalletSimulator:
 
         await self.time_out_assert(15, ap_wallet.get_confirmed_balance, 100)
         await self.time_out_assert(15, ap_wallet.get_unconfirmed_balance, 100)
+
+        # Generate contact for ap_wallet
+
+        ph = await wallet2.get_new_puzzlehash()
+        sig = await wallet.sign(ph, ap_pubkey_a)
+        await ap_wallet.add_contact("wallet2", ph, sig)
+
+        tx = await ap_wallet.ap_generate_signed_transaction(20, ph)
+        assert tx is not None
+
+        tx_record = TransactionRecord(
+            confirmed_at_index=uint32(0),
+            created_at_time=uint64(int(time.time())),
+            to_puzzle_hash=ph,
+            amount=uint64(20),
+            fee_amount=uint64(0),
+            incoming=False,
+            confirmed=False,
+            sent=uint32(0),
+            spend_bundle=tx,
+            additions=tx.additions(),
+            removals=tx.removals(),
+            wallet_id=ap_wallet.wallet_info.id,
+            sent_to=[],
+        )
+        await ap_wallet.wallet_state_manager.add_pending_transaction(tx_record)
+
+        for i in range(1, num_blocks):
+            await full_node_1.farm_new_block(FarmNewBlockProtocol(ph))
+
+        await self.time_out_assert(15, ap_wallet.get_confirmed_balance, 80)
+        await self.time_out_assert(15, ap_wallet.get_unconfirmed_balance, 80)
+        await self.time_out_assert(15, wallet2.get_confirmed_balance, 20)
+        await self.time_out_assert(15, wallet2.get_unconfirmed_balance, 20)
