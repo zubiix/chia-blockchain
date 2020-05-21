@@ -17,6 +17,8 @@ from src.wallet.ap_wallet import ap_puzzles
 from src.wallet.wallet_coin_record import WalletCoinRecord
 from src.wallet.transaction_record import TransactionRecord
 from typing import List
+from src.types.BLSSignature import BLSSignature
+from blspy import PublicKey
 
 
 @pytest.fixture(scope="module")
@@ -102,10 +104,12 @@ class TestWalletSimulator:
         ap_pubkey_b = ap_wallet.ap_info.my_pubkey
 
         ap_puz = ap_puzzles.ap_make_puzzle(ap_pubkey_a, ap_pubkey_b)
-        sig = await wallet.sign(bytes(ap_puz), bytes(ap_pubkey_a))
+        sig = await wallet.sign(ap_puz.get_tree_hash(), bytes(ap_pubkey_a))
         assert sig is not None
         await ap_wallet.set_sender_values(ap_pubkey_a, sig)
-        assert ap_wallet.ap_info.authorised_signature is not None
+        assert ap_wallet.ap_info.change_signature is not None
+        assert BLSSignature.from_bytes(ap_wallet.ap_info.change_signature).validate([BLSSignature.PkMessagePair(ap_pubkey_a, ap_puz.get_tree_hash())])
+        assert BLSSignature.from_bytes(ap_wallet.ap_info.change_signature).validate([BLSSignature.PkMessagePair(PublicKey.from_bytes(ap_wallet.ap_info.authoriser_pubkey), ap_puz.get_tree_hash())])
         tx = await wallet.generate_signed_transaction(100, ap_puz.get_tree_hash())
         await wallet.push_transaction(tx)
 
@@ -117,11 +121,12 @@ class TestWalletSimulator:
 
         # Generate contact for ap_wallet
 
-        ph = await wallet2.get_new_puzzlehash()
-        sig = await wallet.sign(ph, ap_pubkey_a)
-        await ap_wallet.add_contact("wallet2", ph, sig)
+        ph2 = await wallet2.get_new_puzzlehash()
+        sig = await wallet.sign(ph2, ap_pubkey_a)
+        assert sig.validate([sig.PkMessagePair(ap_pubkey_a, ph2)])
+        await ap_wallet.add_contact("wallet2", ph2, sig)
 
-        tx = await ap_wallet.ap_generate_signed_transaction(20, ph)
+        tx = await ap_wallet.ap_generate_signed_transaction(20, ph2)
         assert tx is not None
 
         tx_record = TransactionRecord(

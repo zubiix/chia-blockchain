@@ -9,5 +9,5 @@ from src.util.streamable import streamable, Streamable
 class APInfo(Streamable):
     authoriser_pubkey: Optional[bytes48]
     my_pubkey: Optional[bytes48]
-    contacts: Optional[List[Tuple[str, bytes32]]]  # list of (name, puzhash)
-    authorised_signature: Optional[bytes96]
+    contacts: Optional[List[Tuple[str, bytes32, bytes96]]]  # list of (name, puzhash, BLSSig)
+    change_signature: Optional[bytes96]
