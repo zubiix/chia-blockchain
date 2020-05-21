@@ -266,8 +266,10 @@ class APWallet:
             private = self.wallet_state_manager.private_key.private_child(index).get_private_key()
             pk = BLSPrivateKey(private)
             # sign for AGG_SIG_ME
-            #message = bytes32(blspy.Util.hash256(bytes(Program(solution.solution).get_tree_hash()) + bytes(solution.coin.name())))
-            message = bytes(Program(solution.solution).get_tree_hash())
+            message = bytes(Program(solution.solution).get_tree_hash()) + bytes(solution.coin.name())
+            #message = Program(solution.solution).get_tree_hash()
+            breakpoint()
+            #message = bytes(Program(solution.solution).get_tree_hash())
             signature = pk.sign(message)
             sigs.append(signature)
 
