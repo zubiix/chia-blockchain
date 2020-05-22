@@ -260,21 +260,31 @@ class APWallet:
     # this is for sending a locked coin
     # Wallet B must sign the whole transaction, and the appropriate puzhash signature from A must be included
     async def ap_sign_transaction(self, spends: (Program, [CoinSolution]), sigs: List[BLSSignature]):
+
         for puzzle, solution in spends:
             pubkey = PublicKey.from_bytes(self.ap_info.my_pubkey)
             index = await self.wallet_state_manager.puzzle_store.index_for_pubkey(pubkey)
             private = self.wallet_state_manager.private_key.private_child(index).get_private_key()
             pk = BLSPrivateKey(private)
             # sign for AGG_SIG_ME
-            message = bytes(Program(solution.solution).get_tree_hash()) + bytes(solution.coin.name())
-            #message = Program(solution.solution).get_tree_hash()
-            breakpoint()
-            #message = bytes(Program(solution.solution).get_tree_hash())
+            message = std_hash(Program(solution.solution).get_tree_hash() + bytes(solution.coin.name()))
+
+
             signature = pk.sign(message)
             sigs.append(signature)
+            AG = BLSSignature.aggregate(sigs)
+            pairs = [AG.PkMessagePair(pubkey, message),
+                                    AG.PkMessagePair(PublicKey.from_bytes(self.ap_info.authoriser_pubkey),
+                                                         self.ap_info.contacts[0][1]),
+                                    AG.PkMessagePair(PublicKey.from_bytes(self.ap_info.authoriser_pubkey),
+                                                         puzzle.get_tree_hash())]
+            validated = AG.validate(pairs)
+            print(pairs)
+            breakpoint()
 
         aggsig = BLSSignature.aggregate(sigs)
 
+        breakpoint()
         solution_list = [
             CoinSolution(
                 coin_solution.coin, clvm.to_sexp_f([puzzle, coin_solution.solution])
