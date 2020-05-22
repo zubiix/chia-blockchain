@@ -88,7 +88,6 @@ def hash_key_pairs_for_conditions_dict(
             aggsigme_message: bytes32 = bytes32(
                 blspy.Util.hash256(bytes(cvp.var2 + coin_name))
             )
-            breakpoint()
             pairs.append(
                 BLSSignature.PkMessagePair(aggsigme_blspubkey, aggsigme_message)
             )
