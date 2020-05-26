@@ -269,24 +269,26 @@ class APWallet:
     async def ap_sign_transaction(
         self, spends: (Program, [CoinSolution]), sigs: List[BLSSignature]
     ):
-
+        pubkey = PublicKey.from_bytes(self.ap_info.my_pubkey)
+        index = await self.wallet_state_manager.puzzle_store.index_for_pubkey(
+            pubkey
+        )
+        private = self.wallet_state_manager.private_key.private_child(
+            index
+        ).get_private_key()
+        pk = BLSPrivateKey(private)
+        pairs = [BLSSignature.PkMessagePair(PublicKey.from_bytes())]
         for puzzle, solution in spends:
-            pubkey = PublicKey.from_bytes(self.ap_info.my_pubkey)
-            index = await self.wallet_state_manager.puzzle_store.index_for_pubkey(
-                pubkey
-            )
-            private = self.wallet_state_manager.private_key.private_child(
-                index
-            ).get_private_key()
-            pk = BLSPrivateKey(private)
             # sign for AGG_SIG_ME
             message = std_hash(
                 Program(solution.solution).get_tree_hash() + bytes(solution.coin.name())
             )
             signature = pk.sign(message)
+            assert signature.validate([signature.PkMessagePair(pubkey, message)])
             sigs.append(signature)
 
         aggsig = BLSSignature.aggregate(sigs)
+
 
         solution_list = [
             CoinSolution(
@@ -298,7 +300,7 @@ class APWallet:
         return spend_bundle
 
     # this is for sending a recieved ap coin, not sending a new ap coin
-    async def ap_generate_signed_transaction(self, amount, puzzlehash):
+    async def ap_generate_signed_transaction(self, amount: int, puzzlehash: Program):
 
         # calculate amount of transaction and change
         coins = await self.select_coins(amount)
