@@ -277,7 +277,6 @@ class APWallet:
             index
         ).get_private_key()
         pk = BLSPrivateKey(private)
-        pairs = [BLSSignature.PkMessagePair(PublicKey.from_bytes())]
         for puzzle, solution in spends:
             # sign for AGG_SIG_ME
             message = std_hash(
