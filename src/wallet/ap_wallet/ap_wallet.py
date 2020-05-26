@@ -1,35 +1,23 @@
 import logging
-import time
-import blspy
 import clvm
 from typing import Dict, Optional, List, Any, Set
-from clvm_tools import binutils
-from clvm.EvalError import EvalError
 from src.types.BLSSignature import BLSSignature
 from src.types.coin import Coin
 from src.types.coin_solution import CoinSolution
-from src.types.condition_opcodes import ConditionOpcode
 from src.types.program import Program
 from src.types.spend_bundle import SpendBundle
 from src.types.sized_bytes import bytes32
-from src.util.byte_types import hexstr_to_bytes
-from src.util.condition_tools import (
-    conditions_dict_for_solution,
-    hash_key_pairs_for_conditions_dict,
-)
 from src.util.ints import uint64, uint32
 from src.wallet.BLSPrivateKey import BLSPrivateKey
-from src.wallet.block_record import BlockRecord
 from src.wallet.ap_wallet.ap_info import APInfo
 from src.wallet.transaction_record import TransactionRecord
-from src.wallet.util.json_util import dict_to_json_str
 from src.wallet.util.wallet_types import WalletType
 from src.wallet.wallet import Wallet
 from src.wallet.wallet_coin_record import WalletCoinRecord
 from src.wallet.wallet_info import WalletInfo
 from src.wallet.derivation_record import DerivationRecord
 from src.wallet.ap_wallet import ap_puzzles
-from blspy import PublicKey, Signature
+from blspy import PublicKey
 from src.util.hash import std_hash
 
 
