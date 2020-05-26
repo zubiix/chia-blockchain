@@ -1,8 +1,8 @@
 import asyncio
 import logging
-from typing import Any, Dict, List, Set
+from typing import Dict, List, Set, Optional, Callable
 
-from blspy import Util
+from blspy import Util, PublicKey
 from src.util.keychain import Keychain
 
 from src.consensus.block_rewards import calculate_block_reward
@@ -15,7 +15,7 @@ from src.types.peer_info import PeerInfo
 from src.types.proof_of_space import ProofOfSpace
 from src.types.sized_bytes import bytes32
 from src.util.api_decorators import api_request
-from src.util.ints import uint32, uint64, uint128
+from src.util.ints import uint32, uint64, uint128, uint8
 
 log = logging.getLogger(__name__)
 
@@ -26,7 +26,13 @@ HARVESTER PROTOCOL (FARMER <-> HARVESTER)
 
 
 class Farmer:
-    def __init__(self, farmer_config: Dict, keychain: Keychain, override_constants={}):
+    def __init__(
+        self,
+        farmer_config: Dict,
+        pool_config: Dict,
+        keychain: Keychain,
+        override_constants={},
+    ):
         self.config = farmer_config
         self.harvester_responses_header_hash: Dict[bytes32, bytes32] = {}
         self.harvester_responses_challenge: Dict[bytes32, bytes32] = {}
@@ -36,35 +42,78 @@ class Farmer:
         self.challenge_to_weight: Dict[bytes32, uint128] = {}
         self.challenge_to_height: Dict[bytes32, uint32] = {}
         self.challenge_to_best_iters: Dict[bytes32, uint64] = {}
+        self.challenge_to_estimates: Dict[bytes32, List[float]] = {}
         self.seen_challenges: Set[bytes32] = set()
         self.unfinished_challenges: Dict[uint128, List[bytes32]] = {}
         self.current_weight: uint128 = uint128(0)
-        self.coinbase_rewards: Dict[uint32, Any] = {}
         self.proof_of_time_estimate_ips: uint64 = uint64(10000)
         self.constants = consensus_constants.copy()
         self.server = None
         self._shut_down = False
         self.keychain = keychain
-        self.wallet_target = self.keychain.get_wallet_target()
-        self.pool_target = self.keychain.get_pool_target()
-        self.pool_keys = self.keychain.get_pool_keys()
-        assert self.wallet_target is not None
-        assert self.pool_target is not None
-        assert len(self.pool_keys) == 2
+        self.state_changed_callback: Optional[Callable] = None
+
+        # This is the farmer configuration
+        self.wallet_target = bytes.fromhex(self.config["xch_target_puzzle_hash"])
+        self.pool_public_keys = [
+            PublicKey.from_bytes(bytes.fromhex(pk))
+            for pk in self.config["pool_public_keys"]
+        ]
+
+        # This is the pool configuration, which should be moved out to the pool once it exists
+        self.pool_target = bytes.fromhex(pool_config["xch_target_puzzle_hash"])
+        self.pool_sks = [
+            sk.get_private_key() for (sk, _) in self.keychain.get_all_private_keys()
+        ]
+        self.pool_sks_map: Dict = {}
+        for key in self.pool_sks:
+            self.pool_sks_map[bytes(key.get_public_key())] = key
+
+        assert len(self.wallet_target) == 32
+        assert len(self.pool_target) == 32
+        assert len(self.pool_sks) > 0
         for key, value in override_constants.items():
             self.constants[key] = value
 
     async def _on_connect(self):
         # Sends a handshake to the harvester
-        msg = harvester_protocol.HarvesterHandshake(
-            [sk.get_public_key() for sk in self.pool_keys]
-        )
+        msg = harvester_protocol.HarvesterHandshake(self.pool_public_keys)
         yield OutboundMessage(
             NodeType.HARVESTER, Message("harvester_handshake", msg), Delivery.RESPOND
         )
 
     def set_server(self, server):
         self.server = server
+
+    def _set_state_changed_callback(self, callback: Callable):
+        self.state_changed_callback = callback
+        if self.server is not None:
+            self.server.set_state_changed_callback(callback)
+
+    def _state_changed(self, change: str):
+        if self.state_changed_callback is not None:
+            self.state_changed_callback(change)
+
+    async def _get_required_iters(
+        self, challenge_hash: bytes32, quality_string: bytes32, plot_size: uint8
+    ):
+        weight: uint128 = self.challenge_to_weight[challenge_hash]
+        difficulty: uint64 = uint64(0)
+        for posf in self.challenges[weight]:
+            if posf.challenge_hash == challenge_hash:
+                difficulty = posf.difficulty
+        if difficulty == 0:
+            raise RuntimeError("Did not find challenge")
+
+        estimate_min = (
+            self.proof_of_time_estimate_ips
+            * self.constants["BLOCK_TIME_TARGET"]
+            / self.constants["MIN_ITERS_PROPORTION"]
+        )
+        number_iters: uint64 = calculate_iterations_quality(
+            quality_string, plot_size, difficulty, estimate_min,
+        )
+        return number_iters
 
     @api_request
     async def challenge_response(
@@ -80,26 +129,13 @@ class Farmer:
                 f"Have already seen quality string {challenge_response.quality_string}"
             )
             return
-        weight: uint128 = self.challenge_to_weight[challenge_response.challenge_hash]
         height: uint32 = self.challenge_to_height[challenge_response.challenge_hash]
-        difficulty: uint64 = uint64(0)
-        for posf in self.challenges[weight]:
-            if posf.challenge_hash == challenge_response.challenge_hash:
-                difficulty = posf.difficulty
-        if difficulty == 0:
-            raise RuntimeError("Did not find challenge")
-
-        estimate_min = (
-            self.proof_of_time_estimate_ips
-            * self.constants["BLOCK_TIME_TARGET"]
-            / self.constants["MIN_ITERS_PROPORTION"]
-        )
-        number_iters: uint64 = calculate_iterations_quality(
+        number_iters = await self._get_required_iters(
+            challenge_response.challenge_hash,
             challenge_response.quality_string,
             challenge_response.plot_size,
-            difficulty,
-            estimate_min,
         )
+
         if height < 1000:  # As the difficulty adjusts, don't fetch all qualities
             if challenge_response.challenge_hash not in self.challenge_to_best_iters:
                 self.challenge_to_best_iters[
@@ -115,6 +151,11 @@ class Farmer:
             else:
                 return
         estimate_secs: float = number_iters / self.proof_of_time_estimate_ips
+        if challenge_response.challenge_hash not in self.challenge_to_estimates:
+            self.challenge_to_estimates[challenge_response.challenge_hash] = []
+        self.challenge_to_estimates[challenge_response.challenge_hash].append(
+            estimate_secs
+        )
 
         log.info(f"Estimate: {estimate_secs}, rate: {self.proof_of_time_estimate_ips}")
         if (
@@ -133,6 +174,8 @@ class Farmer:
                 Message("request_proof_of_space", request),
                 Delivery.RESPOND,
             )
+
+            self._state_changed("challenge")
 
     def _start_bg_tasks(self):
         """
@@ -171,9 +214,7 @@ class Farmer:
         and request a pool partial, a header signature, or both, if the proof is good enough.
         """
 
-        if response.proof.pool_pubkey not in [
-            sk.get_public_key() for sk in self.pool_keys
-        ]:
+        if response.proof.pool_pubkey not in self.pool_public_keys:
             raise RuntimeError("Pool pubkey not in list of approved keys")
 
         challenge_hash: bytes32 = self.harvester_responses_challenge[
@@ -218,13 +259,19 @@ class Farmer:
                 Delivery.RESPOND,
             )
         if estimate_secs < self.config["propagate_threshold"]:
-            if new_proof_height not in self.coinbase_rewards:
+            pool_pk = bytes(response.proof.pool_pubkey)
+            if pool_pk not in self.pool_sks_map:
                 log.error(
-                    f"Don't have coinbase transaction for height {new_proof_height}, cannot submit PoS"
+                    f"Don't have the private key for the pool key used by harvester: {pool_pk.hex()}"
                 )
                 return
+            sk = self.pool_sks_map[pool_pk]
+            coinbase_reward = uint64(calculate_block_reward(uint32(new_proof_height)))
 
-            coinbase, signature = self.coinbase_rewards[new_proof_height]
+            coinbase, signature = create_coinbase_coin_and_signature(
+                new_proof_height, self.pool_target, coinbase_reward, sk,
+            )
+
             request2 = farmer_protocol.RequestHeaderHash(
                 challenge_hash, coinbase, signature, self.wallet_target, response.proof,
             )
@@ -327,26 +374,6 @@ class Farmer:
             if proof_of_space_finalized.weight > self.current_weight:
                 self.current_weight = proof_of_space_finalized.weight
 
-            # TODO: ask the pool for this information
-
-            pool_sks = self.pool_keys
-
-            coinbase_reward = uint64(
-                calculate_block_reward(uint32(proof_of_space_finalized.height + 1))
-            )
-
-            coinbase_coin, coinbase_signature = create_coinbase_coin_and_signature(
-                proof_of_space_finalized.height + 1,
-                self.pool_target,
-                coinbase_reward,
-                pool_sks[0],
-            )
-
-            self.coinbase_rewards[uint32(proof_of_space_finalized.height + 1)] = (
-                coinbase_coin,
-                coinbase_signature,
-            )
-
             log.info(f"\tCurrent weight set to {self.current_weight}")
         self.seen_challenges.add(proof_of_space_finalized.challenge_hash)
         if proof_of_space_finalized.weight not in self.challenges:
@@ -373,6 +400,13 @@ class Farmer:
                 Message("new_challenge", message),
                 Delivery.BROADCAST,
             )
+            # This allows the collection of estimates from the harvesters
+            self._state_changed("challenge")
+            for _ in range(20):
+                if self._shut_down:
+                    return
+                await asyncio.sleep(1)
+            self._state_changed("challenge")
 
     @api_request
     async def proof_of_space_arrived(

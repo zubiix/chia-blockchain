@@ -10,13 +10,14 @@ except ImportError:
     uvloop = None
 
 from src.full_node.full_node import FullNode
-from src.rpc.rpc_server import start_rpc_server
+from src.rpc.full_node_rpc_server import start_full_node_rpc_server
 from src.server.server import ChiaServer
 from src.server.connection import NodeType
 from src.util.logging import initialize_logging
 from src.util.config import load_config_cli, load_config
 from src.util.default_root import DEFAULT_ROOT_PATH
 from src.util.setproctitle import setproctitle
+from multiprocessing import freeze_support
 
 
 async def async_main():
@@ -43,7 +44,7 @@ async def async_main():
             )
             log.info(f"Port {config['port']} opened with UPnP.")
         except Exception:
-            log.exception(f"UPnP failed")
+            log.exception("UPnP failed")
 
     # Starts the full node server (which full nodes can connect to)
     ping_interval = net_config.get("ping_interval")
@@ -69,11 +70,12 @@ async def async_main():
             # Called by the UI, when node is closed, or when a signal is sent
             log.info("Closing all connections, and server...")
             server.close_all()
+            full_node._close()
             server_closed = True
 
     if config["start_rpc_server"]:
         # Starts the RPC server
-        rpc_cleanup = await start_rpc_server(
+        rpc_cleanup = await start_full_node_rpc_server(
             full_node, master_close_cb, config["rpc_port"]
         )
 
@@ -90,7 +92,7 @@ async def async_main():
     log.info("Closed all node servers.")
 
     # Stops the full node and closes DBs
-    await full_node._shutdown()
+    await full_node._await_closed()
 
     # Waits for the rpc server to close
     if rpc_cleanup is not None:
@@ -108,4 +110,5 @@ def main():
 
 
 if __name__ == "__main__":
+    freeze_support()
     main()

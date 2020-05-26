@@ -82,7 +82,7 @@ class WalletStateManager:
 
     @staticmethod
     async def create(
-        keychain: Keychain,
+        private_key: ExtendedPrivateKey,
         config: Dict,
         db_path: Path,
         constants: Dict,
@@ -118,8 +118,7 @@ class WalletStateManager:
         main_wallet_info = await self.user_store.get_wallet_by_id(1)
         assert main_wallet_info is not None
 
-        self.keychain = keychain
-        self.private_key = self.keychain.get_wallet_key()
+        self.private_key = private_key
 
         self.main_wallet = await Wallet.create(self, main_wallet_info)
 
@@ -127,7 +126,7 @@ class WalletStateManager:
         self.wallets[main_wallet_info.id] = self.main_wallet
 
         for wallet_info in await self.get_all_wallets():
-            self.log.info(f"wallet_info {wallet_info}")
+            # self.log.info(f"wallet_info {wallet_info}")
             if wallet_info.type == WalletType.STANDARD_WALLET:
                 if wallet_info.id == 1:
                     continue
@@ -336,7 +335,19 @@ class WalletStateManager:
         for record in spendable:
             amount = uint64(amount + record.coin.amount)
 
-        return uint64(amount)
+        unconfirmed_tx: List[
+            TransactionRecord
+        ] = await self.tx_store.get_unconfirmed_for_wallet(wallet_id)
+        removal_amount = 0
+
+        for txrecord in unconfirmed_tx:
+            for coin in txrecord.removals:
+                if await self.does_coin_belong_to_wallet(coin, wallet_id):
+                    removal_amount += coin.amount
+
+        result = amount - removal_amount
+
+        return uint64(result)
 
     async def does_coin_belong_to_wallet(self, coin: Coin, wallet_id: int) -> bool:
         """
@@ -480,14 +491,13 @@ class WalletStateManager:
             )
             await self.tx_store.add_transaction_record(tx_record)
         else:
-            unconfirmed_record = await self.tx_store.unconfirmed_with_addition_coin(
-                coin.name()
-            )
+            records = await self.tx_store.tx_with_addition_coin(coin.name(), wallet_id)
 
-            if len(unconfirmed_record) > 0:
+            if len(records) > 0:
                 # This is the change from this transaction
-                for record in unconfirmed_record:
-                    await self.tx_store.set_confirmed(record.name(), index)
+                for record in records:
+                    if record.confirmed is False:
+                        await self.tx_store.set_confirmed(record.name(), index)
             else:
                 now = uint64(int(time.time()))
                 tx_record = TransactionRecord(

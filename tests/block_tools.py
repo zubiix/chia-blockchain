@@ -12,7 +12,9 @@ from chiabip158 import PyBIP158
 
 from chiapos import DiskPlotter, DiskProver
 from src import __version__
+from src.consensus.coinbase import create_puzzlehash_for_pk
 from src.cmds.init import create_default_chia_config, initialize_ssl
+from src.types.BLSSignature import BLSPublicKey
 from src.consensus import block_rewards, pot_iterations
 from src.consensus.constants import constants
 from src.consensus.pot_iterations import calculate_min_iters_from_iterations
@@ -34,16 +36,27 @@ from src.util.hash import std_hash
 from src.util.path import mkdir
 from src.util.significant_bits import truncate_to_significant_bits
 from src.util.mempool_check_conditions import get_name_puzzle_conditions
-from src.util.config import load_config, load_config_cli
+from src.util.config import load_config, load_config_cli, save_config
+from src.util.default_root import DEFAULT_ROOT_PATH
+from src.harvester import load_plots
 
 
 TEST_ROOT_PATH = Path(
     os.path.expanduser(
-        os.getenv("CHIA_ROOT", "~/.chia/beta-{version}-test").format(
+        os.getenv("CHIA_TEST_ROOT", "~/.chia/beta-{version}-test").format(
             version=__version__
         )
     )
 ).resolve()
+
+
+def get_plot_dir(root_path):
+    CHIA_TEST_PLOT_ROOT = os.getenv("CHIA_TEST_PLOT_ROOT")
+    if CHIA_TEST_PLOT_ROOT:
+        return Path(
+            os.path.expanduser(CHIA_TEST_PLOT_ROOT.format(version=__version__))
+        ).resolve()
+    return root_path / "plots"
 
 
 class BlockTools:
@@ -57,10 +70,8 @@ class BlockTools:
         create_default_chia_config(root_path)
         initialize_ssl(root_path)
         self.root_path = root_path
-        self.wallet_sk: PrivateKey = PrivateKey.from_seed(b"coinbase")
-        self.coinbase_target = std_hash(bytes(self.wallet_sk.get_public_key()))
-        self.fee_target = std_hash(bytes(self.wallet_sk.get_public_key()))
         self.n_wesolowski = uint8(0)
+        self.real_plots = real_plots
 
         if not real_plots:
             # No real plots supplied, so we will use the small test plots
@@ -72,10 +83,12 @@ class BlockTools:
             num_plots = 40
             # Use the empty string as the seed for the private key
 
-            self.keychain = Keychain.create("testing", True)
-            self.keychain.set_wallet_seed(b"")
-            self.keychain.set_pool_seed(b"")
-            pool_sk: PrivateKey = self.keychain.get_pool_keys()[0]
+            self.keychain = Keychain("testing", True)
+            self.keychain.delete_all_keys()
+            self.keychain.add_private_key_seed(b"block_tools")
+            pool_sk: PrivateKey = self.keychain.get_all_private_keys()[0][
+                0
+            ].get_private_key()
             pool_pk: PublicKey = pool_sk.get_public_key()
 
             plot_sks: List[PrivateKey] = [
@@ -87,7 +100,7 @@ class BlockTools:
                 ProofOfSpace.calculate_plot_seed(pool_pk, plot_pk)
                 for plot_pk in plot_pks
             ]
-            plot_dir = root_path / "plots"
+            plot_dir = get_plot_dir(root_path)
             mkdir(plot_dir)
             filenames: List[str] = [
                 f"genesis-plots-{k}{std_hash(int.to_bytes(i, 4, 'big')).hex()}.dat"
@@ -115,6 +128,8 @@ class BlockTools:
                         "sk": bytes(plot_sks[pn]).hex(),
                         "pool_sk": bytes(pool_sk).hex(),
                     }
+                save_config(self.root_path, "plots.yaml", self.plot_config)
+
             except KeyboardInterrupt:
                 for filename in filenames:
                     if (
@@ -125,22 +140,41 @@ class BlockTools:
                 sys.exit(1)
         else:
             try:
-                plot_config = load_config(root_path, "plots.yaml")
+                plot_config = load_config(DEFAULT_ROOT_PATH, "plots.yaml")
+                normal_config = load_config(DEFAULT_ROOT_PATH, "config.yaml")
             except FileNotFoundError:
                 raise RuntimeError("Plots not generated. Run chia-create-plots")
-
-            keychain = Keychain.create("testing", False)
-            pool_sks: List[PrivateKey] = keychain.get_pool_keys()
-            if len(pool_sks) != 2:
+            self.keychain = Keychain(testing=False)
+            private_keys: List[PrivateKey] = [
+                k.get_private_key() for (k, _) in self.keychain.get_all_private_keys()
+            ]
+            pool_pubkeys: List[PublicKey] = [sk.get_public_key() for sk in private_keys]
+            if len(private_keys) == 0:
                 raise RuntimeError("Keys not generated. Run `chia generate keys`")
 
-            for key, value in plot_config["plots"].items():
-                for pool_sk in pool_sks:
-                    if bytes(pool_sk.get_public_key()).hex() == value["pool_pk"]:
-                        plot_config["plots"][key]["pool_sk"] = bytes(pool_sk).hex()
+            self.prover_dict, _, _ = load_plots(
+                normal_config["harvester"], plot_config, pool_pubkeys, DEFAULT_ROOT_PATH
+            )
 
-            self.plot_config = plot_config
+            new_plot_config: Dict = {"plots": {}}
+            for key, value in plot_config["plots"].items():
+                for sk in private_keys:
+                    if (
+                        bytes(sk.get_public_key()).hex() == value["pool_pk"]
+                        and key in self.prover_dict
+                    ):
+                        new_plot_config["plots"][key] = value
+                        new_plot_config["plots"][key]["pool_sk"] = bytes(sk).hex()
+
+            self.plot_config = new_plot_config
             self.use_any_pos = False
+            a = self.plot_config["plots"]
+            print(f"Using {len(a)} reals plots to initialize block_tools")
+
+        private_key = self.keychain.get_all_private_keys()[0][0]
+        self.fee_target = create_puzzlehash_for_pk(
+            BLSPublicKey(bytes(private_key.public_child(1).get_public_key()))
+        )
 
     def get_harvester_signature(self, header_data: HeaderData, plot_pk: PublicKey):
         for value_dict in self.plot_config["plots"].values():
@@ -469,7 +503,13 @@ class BlockTools:
             for i in range(len(plots)):
                 pool_sk = PrivateKey.from_bytes(bytes.fromhex(plots[i][1]["pool_sk"]))
                 plot_sk = PrivateKey.from_bytes(bytes.fromhex(plots[i][1]["sk"]))
-                prover = DiskProver(plots[i][0])
+                try:
+                    if self.real_plots:
+                        prover = self.prover_dict[plots[i][0]]
+                    else:
+                        prover = DiskProver(plots[i][0])
+                except (ValueError, KeyError) as e:
+                    continue
                 qualities = prover.get_qualities_for_challenge(challenge_hash)
                 j = 0
                 for quality in qualities:
