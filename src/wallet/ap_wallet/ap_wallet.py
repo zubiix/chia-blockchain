@@ -277,6 +277,14 @@ class APWallet:
             index
         ).get_private_key()
         pk = BLSPrivateKey(private)
+        
+        pairs = [BLSSignature.PkMessagePair(PublicKey.from_bytes(self.ap_info.authoriser_pubkey),self.ap_info.contacts[0][1])]
+
+        ap_puzzle = ap_puzzles.ap_make_puzzle(
+            self.ap_info.authoriser_pubkey, self.ap_info.my_pubkey
+        )
+        pairs.append(BLSSignature.PkMessagePair(PublicKey.from_bytes(self.ap_info.authoriser_pubkey), ap_puzzle.get_tree_hash()))
+
         for puzzle, solution in spends:
             # sign for AGG_SIG_ME
             message = std_hash(
@@ -285,9 +293,10 @@ class APWallet:
             signature = pk.sign(message)
             assert signature.validate([signature.PkMessagePair(pubkey, message)])
             sigs.append(signature)
+            pairs.append(signature.PkMessagePair(pubkey, message))
 
         aggsig = BLSSignature.aggregate(sigs)
-
+        assert(aggsig.validate(pairs))
 
         solution_list = [
             CoinSolution(
