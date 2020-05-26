@@ -295,8 +295,12 @@ class APWallet:
             sigs.append(signature)
             pairs.append(signature.PkMessagePair(pubkey, message))
 
-        aggsig = BLSSignature.aggregate(sigs)
-        assert(aggsig.validate(pairs))
+        AG = BLSSignature.aggregate(sigs)
+        validated = AG.validate(pairs)
+        print(pairs)
+        assert validated
+        aggsig = AG
+
 
         solution_list = [
             CoinSolution(
