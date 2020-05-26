@@ -8,6 +8,7 @@ import pytest
 from src.protocols import full_node_protocol
 from src.simulator.simulator_protocol import FarmNewBlockProtocol, ReorgProtocol
 from src.types.peer_info import PeerInfo
+from src.types.BLSSignature import BLSSignature
 from src.util.ints import uint16, uint32, uint64
 from src.wallet.trade_manager import TradeManager
 from tests.setup_nodes import setup_simulators_and_wallets
@@ -16,6 +17,20 @@ from src.wallet.cc_wallet.cc_wallet import CCWallet
 from src.wallet.cc_wallet import cc_wallet_puzzles
 from src.wallet.wallet_coin_record import WalletCoinRecord
 from typing import List
+from typing import Dict, Optional, List, Any, Set
+from src.wallet.cc_wallet.cc_wallet_puzzles import (
+    get_innerpuzzle_from_puzzle,
+    cc_generate_eve_spend,
+    create_spend_for_auditor,
+    create_spend_for_ephemeral,
+)
+from src.wallet.transaction_record import TransactionRecord
+from src.types.coin import Coin
+from src.types.program import Program
+from src.types.coin_solution import CoinSolution
+from src.types.spend_bundle import SpendBundle
+from clvm_tools import binutils
+import clvm
 
 
 @pytest.fixture(scope="module")
@@ -209,8 +224,158 @@ class TestWalletSimulator:
 
         assert cc_wallet.cc_info.my_core == cc_wallet_2.cc_info.my_core
 
-        cc_2_hash = await cc_wallet_2.get_new_inner_hash()
-        await cc_wallet.cc_spend(uint64(60), cc_2_hash)
+        to_address = await cc_wallet_2.get_new_inner_hash()
+
+        amount = 60
+
+        sigs: List[BLSSignature] = []
+
+        # Get coins and calculate amount of change required
+        selected_coins: Optional[Set[Coin]] = await cc_wallet.select_coins(amount)
+        assert selected_coins is not None
+
+        total_amount = sum([x.amount for x in selected_coins])
+
+        # first coin becomes the auditor special case
+        auditor = selected_coins.pop()
+        puzzle_hash = auditor.puzzle_hash
+        inner_puzzle: Program = await cc_wallet.inner_puzzle_for_cc_puzzle(puzzle_hash)
+
+        auditor_info = (
+            auditor.parent_coin_info,
+            inner_puzzle.get_tree_hash(),
+            auditor.amount,
+        )
+        list_of_solutions = []
+
+        # auditees should be (primary_input, innerpuzhash, coin_amount, output_amount)
+        auditees = [
+            (
+                auditor.parent_coin_info,
+                inner_puzzle.get_tree_hash(),
+                auditor.amount,
+                total_amount,
+            )
+        ]
+        for coin in selected_coins:
+            coin_inner_puzzle: Program = await cc_wallet.inner_puzzle_for_cc_puzzle(
+                coin.puzzle_hash
+            )
+            auditees.append(
+                (coin.parent_coin_info, coin_inner_puzzle[coin], coin.amount, 0,)
+            )
+
+        primaries = [{"puzzlehash": to_address, "amount": amount}]
+
+        innersol = cc_wallet.standard_wallet.make_solution(primaries=primaries)
+        sigs = sigs + await cc_wallet.get_sigs(inner_puzzle, innersol)
+        parent_info = await cc_wallet.get_parent_for_coin(auditor)
+        assert parent_info is not None
+        assert cc_wallet.cc_info.my_core is not None
+
+        solution = cc_wallet_puzzles.cc_make_solution(
+            cc_wallet.cc_info.my_core,
+            (
+                parent_info.parent_name,
+                parent_info.inner_puzzle_hash,
+                parent_info.amount,
+            ),
+            auditor.amount,
+            binutils.disassemble(inner_puzzle),
+            binutils.disassemble(innersol),
+            auditor_info,
+            auditees,
+            False,
+        )
+
+        main_coin_solution = CoinSolution(
+            auditor,
+            clvm.to_sexp_f(
+                [
+                    cc_wallet_puzzles.cc_make_puzzle(
+                        inner_puzzle.get_tree_hash(), cc_wallet.cc_info.my_core,
+                    ),
+                    solution,
+                ]
+            ),
+        )
+        list_of_solutions.append(main_coin_solution)
+        # main = SpendBundle([main_coin_solution], ZERO96)
+
+        ephemeral_coin_solution = create_spend_for_ephemeral(
+            auditor, auditor, total_amount
+        )
+        list_of_solutions.append(ephemeral_coin_solution)
+        # eph = SpendBundle([ephemeral_coin_solution], ZERO96)
+
+        auditor_coin_colution = create_spend_for_auditor(auditor, auditor)
+        list_of_solutions.append(auditor_coin_colution)
+        # aud = SpendBundle([auditor_coin_colution], ZERO96)
+
+        # loop through remaining spends, treating them as aggregatees
+        for coin in selected_coins:
+            coin_inner_puzzle = await cc_wallet.inner_puzzle_for_cc_puzzle(coin.puzzle_hash)
+            innersol = cc_wallet.standard_wallet.make_solution()
+            parent_info = await cc_wallet.get_parent_for_coin(coin)
+            assert parent_info is not None
+            sigs = sigs + await cc_wallet.get_sigs(coin_inner_puzzle, innersol)
+
+            solution = cc_wallet_puzzles.cc_make_solution(
+                cc_wallet.cc_info.my_core,
+                (
+                    parent_info.parent_name,
+                    parent_info.inner_puzzle_hash,
+                    parent_info.amount,
+                ),
+                coin.amount,
+                binutils.disassemble(coin_inner_puzzle),
+                binutils.disassemble(innersol),
+                auditor_info,
+                None,
+            )
+            list_of_solutions.append(
+                CoinSolution(
+                    coin,
+                    clvm.to_sexp_f(
+                        [
+                            cc_wallet_puzzles.cc_make_puzzle(
+                                coin_inner_puzzle.get_tree_hash(), cc_wallet.cc_info.my_core,
+                            ),
+                            solution,
+                        ]
+                    ),
+                )
+            )
+            list_of_solutions.append(create_spend_for_ephemeral(coin, auditor, 0))
+            list_of_solutions.append(create_spend_for_auditor(auditor, coin))
+
+        aggsig = BLSSignature.aggregate(sigs)
+        spend_bundle = SpendBundle(list_of_solutions, aggsig)
+
+        tx_record = TransactionRecord(
+            confirmed_at_index=uint32(0),
+            created_at_time=uint64(int(time.time())),
+            to_puzzle_hash=to_address,
+            amount=uint64(amount),
+            fee_amount=uint64(0),
+            incoming=False,
+            confirmed=False,
+            sent=uint32(0),
+            spend_bundle=spend_bundle,
+            additions=spend_bundle.additions(),
+            removals=spend_bundle.removals(),
+            wallet_id=cc_wallet.wallet_info.id,
+            sent_to=[],
+        )
+        await cc_wallet.wallet_state_manager.add_pending_transaction(tx_record)
+
+        for i in range(1, num_blocks):
+            await full_node_1.farm_new_block(FarmNewBlockProtocol(ph))
+
+        await self.time_out_assert(15, cc_wallet.get_confirmed_balance, 100)
+        await self.time_out_assert(15, cc_wallet.get_unconfirmed_balance, 40)
+        await self.time_out_assert(15, cc_wallet_2.get_confirmed_balance, 0)
+        await self.time_out_assert(15, cc_wallet_2.get_unconfirmed_balance, 0)
 
     @pytest.mark.asyncio
     async def test_get_wallet_for_colour(self, two_wallet_nodes):
