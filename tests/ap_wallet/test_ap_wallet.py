@@ -109,8 +109,17 @@ class TestWalletSimulator:
         assert sig is not None
         await ap_wallet.set_sender_values(ap_pubkey_a, sig)
         assert ap_wallet.ap_info.change_signature is not None
-        assert BLSSignature.from_bytes(ap_wallet.ap_info.change_signature).validate([BLSSignature.PkMessagePair(ap_pubkey_a, ap_puz.get_tree_hash())])
-        assert BLSSignature.from_bytes(ap_wallet.ap_info.change_signature).validate([BLSSignature.PkMessagePair(PublicKey.from_bytes(ap_wallet.ap_info.authoriser_pubkey), ap_puz.get_tree_hash())])
+        assert BLSSignature.from_bytes(ap_wallet.ap_info.change_signature).validate(
+            [BLSSignature.PkMessagePair(ap_pubkey_a, ap_puz.get_tree_hash())]
+        )
+        assert BLSSignature.from_bytes(ap_wallet.ap_info.change_signature).validate(
+            [
+                BLSSignature.PkMessagePair(
+                    PublicKey.from_bytes(ap_wallet.ap_info.authoriser_pubkey),
+                    ap_puz.get_tree_hash(),
+                )
+            ]
+        )
         tx = await wallet.generate_signed_transaction(100, ap_puz.get_tree_hash())
         await wallet.push_transaction(tx)
 
@@ -197,8 +206,17 @@ class TestWalletSimulator:
         assert sig is not None
         await ap_wallet.set_sender_values(ap_pubkey_a, sig)
         assert ap_wallet.ap_info.change_signature is not None
-        assert BLSSignature.from_bytes(ap_wallet.ap_info.change_signature).validate([BLSSignature.PkMessagePair(ap_pubkey_a, ap_puz.get_tree_hash())])
-        assert BLSSignature.from_bytes(ap_wallet.ap_info.change_signature).validate([BLSSignature.PkMessagePair(PublicKey.from_bytes(ap_wallet.ap_info.authoriser_pubkey), ap_puz.get_tree_hash())])
+        assert BLSSignature.from_bytes(ap_wallet.ap_info.change_signature).validate(
+            [BLSSignature.PkMessagePair(ap_pubkey_a, ap_puz.get_tree_hash())]
+        )
+        assert BLSSignature.from_bytes(ap_wallet.ap_info.change_signature).validate(
+            [
+                BLSSignature.PkMessagePair(
+                    PublicKey.from_bytes(ap_wallet.ap_info.authoriser_pubkey),
+                    ap_puz.get_tree_hash(),
+                )
+            ]
+        )
         tx = await wallet.generate_signed_transaction(100, ap_puz.get_tree_hash())
         await wallet.push_transaction(tx)
 
@@ -226,7 +244,14 @@ class TestWalletSimulator:
         for name_address in ap_wallet.ap_info.contacts:
             if puzzlehash == name_address[1]:
                 auth_sig = BLSSignature.from_bytes(name_address[2])
-                assert auth_sig.validate([auth_sig.PkMessagePair(PublicKey.from_bytes(ap_wallet.ap_info.authoriser_pubkey), puzzlehash)])
+                assert auth_sig.validate(
+                    [
+                        auth_sig.PkMessagePair(
+                            PublicKey.from_bytes(ap_wallet.ap_info.authoriser_pubkey),
+                            puzzlehash,
+                        )
+                    ]
+                )
                 break
         if auth_sig is None:
             return None
@@ -234,7 +259,9 @@ class TestWalletSimulator:
         sigs = [auth_sig]
         spends = []
         coin = coins.pop()
-        solution = ap_puzzles.ap_make_solution([(puzzlehash, amount)], coin.parent_coin_info, ap_puz.get_tree_hash())
+        solution = ap_puzzles.ap_make_solution(
+            [(puzzlehash, amount)], coin.parent_coin_info, ap_puz.get_tree_hash()
+        )
         spends.append((ap_puz, CoinSolution(coin, solution)))
 
         tx = await ap_wallet.ap_sign_transaction(spends, sigs)

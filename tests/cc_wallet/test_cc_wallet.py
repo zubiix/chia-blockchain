@@ -164,6 +164,55 @@ class TestWalletSimulator:
         await self.time_out_assert(15, cc_wallet.get_unconfirmed_balance, 55)
 
     @pytest.mark.asyncio
+    async def test_cc_siphon(self, two_wallet_nodes):
+        num_blocks = 10
+        full_nodes, wallets = two_wallet_nodes
+        full_node_1, server_1 = full_nodes[0]
+        wallet_node, server_2 = wallets[0]
+        wallet_node_2, server_3 = wallets[1]
+        wallet = wallet_node.wallet_state_manager.main_wallet
+        wallet2 = wallet_node_2.wallet_state_manager.main_wallet
+
+        ph = await wallet.get_new_puzzlehash()
+
+        await server_2.start_client(PeerInfo("localhost", uint16(server_1._port)), None)
+        await server_3.start_client(PeerInfo("localhost", uint16(server_1._port)), None)
+
+        for i in range(1, num_blocks):
+            await full_node_1.farm_new_block(FarmNewBlockProtocol(ph))
+
+        funds = sum(
+            [
+                calculate_base_fee(uint32(i)) + calculate_block_reward(uint32(i))
+                for i in range(1, num_blocks - 2)
+            ]
+        )
+
+        await self.time_out_assert(15, wallet.get_confirmed_balance, funds)
+
+        cc_wallet: CCWallet = await CCWallet.create_new_cc(
+            wallet_node.wallet_state_manager, wallet, uint64(100)
+        )
+
+        for i in range(1, num_blocks):
+            await full_node_1.farm_new_block(FarmNewBlockProtocol(ph))
+
+        await self.time_out_assert(15, cc_wallet.get_confirmed_balance, 100)
+        await self.time_out_assert(15, cc_wallet.get_unconfirmed_balance, 100)
+
+        assert cc_wallet.cc_info.my_core is not None
+        colour = cc_wallet_puzzles.get_genesis_from_core(cc_wallet.cc_info.my_core)
+
+        cc_wallet_2: CCWallet = await CCWallet.create_wallet_for_cc(
+            wallet_node_2.wallet_state_manager, wallet2, colour
+        )
+
+        assert cc_wallet.cc_info.my_core == cc_wallet_2.cc_info.my_core
+
+        cc_2_hash = await cc_wallet_2.get_new_inner_hash()
+        await cc_wallet.cc_spend(uint64(60), cc_2_hash)
+
+    @pytest.mark.asyncio
     async def test_get_wallet_for_colour(self, two_wallet_nodes):
         num_blocks = 10
         full_nodes, wallets = two_wallet_nodes

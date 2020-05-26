@@ -390,7 +390,9 @@ class Wallet:
 
     async def sign(self, value, pubkey):
         index = await self.wallet_state_manager.puzzle_store.index_for_pubkey(pubkey)
-        private = self.wallet_state_manager.private_key.private_child(index).get_private_key()
+        private = self.wallet_state_manager.private_key.private_child(
+            index
+        ).get_private_key()
         pk = BLSPrivateKey(private)
 
         sig = pk.sign(value)
