@@ -314,7 +314,9 @@ class TestWalletSimulator:
 
         # loop through remaining spends, treating them as aggregatees
         for coin in selected_coins:
-            coin_inner_puzzle = await cc_wallet.inner_puzzle_for_cc_puzzle(coin.puzzle_hash)
+            coin_inner_puzzle = await cc_wallet.inner_puzzle_for_cc_puzzle(
+                coin.puzzle_hash
+            )
             innersol = cc_wallet.standard_wallet.make_solution()
             parent_info = await cc_wallet.get_parent_for_coin(coin)
             assert parent_info is not None
@@ -339,7 +341,8 @@ class TestWalletSimulator:
                     clvm.to_sexp_f(
                         [
                             cc_wallet_puzzles.cc_make_puzzle(
-                                coin_inner_puzzle.get_tree_hash(), cc_wallet.cc_info.my_core,
+                                coin_inner_puzzle.get_tree_hash(),
+                                cc_wallet.cc_info.my_core,
                             ),
                             solution,
                         ]

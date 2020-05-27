@@ -273,9 +273,7 @@ class APWallet:
         self, spends: (Program, [CoinSolution]), sigs: List[BLSSignature]
     ):
         pubkey = PublicKey.from_bytes(self.ap_info.my_pubkey)
-        index = await self.wallet_state_manager.puzzle_store.index_for_pubkey(
-            pubkey
-        )
+        index = await self.wallet_state_manager.puzzle_store.index_for_pubkey(pubkey)
         private = self.wallet_state_manager.private_key.private_child(
             index
         ).get_private_key()
@@ -332,7 +330,11 @@ class APWallet:
         if change > 0:
             puzzlehash_amount_sig_list = [
                 (puzzlehash, amount, auth_sig),
-                (ap_puzzle.get_tree_hash(), change, BLSSignature.from_bytes(self.ap_info.change_signature)),
+                (
+                    ap_puzzle.get_tree_hash(),
+                    change,
+                    BLSSignature.from_bytes(self.ap_info.change_signature),
+                ),
             ]
         else:
             puzzlehash_amount_sig_list = [(puzzlehash, amount, auth_sig)]

@@ -1,19 +1,6 @@
-from typing import Optional, Tuple
-
 from clvm_tools import binutils
-import clvm
-import string
-from src.types.BLSSignature import BLSSignature
 from src.types.program import Program
-from src.types.coin import Coin
-from src.types.coin_solution import CoinSolution
 from src.types.condition_opcodes import ConditionOpcode
-
-# This is for spending an existing coloured coin
-from src.types.sized_bytes import bytes32
-from src.types.spend_bundle import SpendBundle
-from src.util.ints import uint64
-from blspy import PublicKey
 
 
 # this is for wallet A to generate the permitted puzzlehashes and sign them ahead of time
