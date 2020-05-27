@@ -226,6 +226,7 @@ class APWallet:
         # we only have/need one coin in this wallet at any time - this code can be improved
         spent = 0
         spends = []
+        sigs = []
         current_puzhash = 0
         for coin in coins:
             coin_amount_left = coin.amount
@@ -242,6 +243,7 @@ class APWallet:
                     puzhash_amount.append(
                         (puzzlehash_amount_list[current_puzhash][0], rest)
                     )
+                    sigs.append(puzzlehash_amount_list[current_puzhash][2])
 
                     coin_amount_left = new_coin_amount_left
                     current_puzhash = current_puzhash + 1
@@ -250,13 +252,14 @@ class APWallet:
                     puzhash_amount.append(
                         (puzzlehash_amount_list[current_puzhash][0], coin_amount_left)
                     )
+                    sigs.append(puzzlehash_amount_list[current_puzhash][2])
                     spent += coin_amount_left
                     coin_amount_left = 0
             solution = ap_puzzles.ap_make_solution(
                 puzhash_amount, coin.parent_coin_info, my_puz.get_tree_hash()
             )
             spends.append((my_puz, CoinSolution(coin, solution)))
-        return spends
+        return spends, sigs
 
     # this allows wallet A to approve of new puzzlehashes/spends from wallet B that weren't in the original list
     def ap_sign_output_newpuzzlehash(self, puzzlehash, newpuzzlehash, b_pubkey_used):
@@ -278,15 +281,6 @@ class APWallet:
         ).get_private_key()
         pk = BLSPrivateKey(private)
 
-        pairs = [BLSSignature.PkMessagePair(PublicKey.from_bytes(self.ap_info.authoriser_pubkey),self.ap_info.contacts[0][1])]
-
-        ap_puzzle = ap_puzzles.ap_make_puzzle(
-            self.ap_info.authoriser_pubkey, self.ap_info.my_pubkey
-        )
-        pairs.append(BLSSignature.PkMessagePair(PublicKey.from_bytes(self.ap_info.authoriser_pubkey), ap_puzzle.get_tree_hash()))
-        sigs_set = set()
-        for s in sigs:
-            sigs_set.add(s)
         for puzzle, solution in spends:
             # sign for AGG_SIG_ME
             message = std_hash(
@@ -294,11 +288,9 @@ class APWallet:
             )
             signature = pk.sign(message)
             assert signature.validate([signature.PkMessagePair(pubkey, message)])
-            sigs_set.add(signature)
-            pairs.append(signature.PkMessagePair(pubkey, message))
+            sigs.append(signature)
 
-        AG = BLSSignature.aggregate(list(sigs_set))
-        aggsig = AG
+        aggsig = BLSSignature.aggregate(sigs)
         solution_list = [
             CoinSolution(
                 coin_solution.coin, clvm.to_sexp_f([puzzle, coin_solution.solution])
@@ -338,16 +330,15 @@ class APWallet:
             self.ap_info.authoriser_pubkey, self.ap_info.my_pubkey
         )
         if change > 0:
-            puzzlehash_amount_list = [
-                (puzzlehash, amount),
-                (ap_puzzle.get_tree_hash(), change),
+            puzzlehash_amount_sig_list = [
+                (puzzlehash, amount, auth_sig),
+                (ap_puzzle.get_tree_hash(), change, BLSSignature.from_bytes(self.ap_info.change_signature)),
             ]
         else:
-            puzzlehash_amount_list = [(puzzlehash, amount)]
+            puzzlehash_amount_sig_list = [(puzzlehash, amount, auth_sig)]
 
-        sigs = [auth_sig, BLSSignature.from_bytes(self.ap_info.change_signature)]
-        transaction = await self.ap_generate_unsigned_transaction(
-            coins, puzzlehash_amount_list, ap_puzzle
+        transaction, sigs = await self.ap_generate_unsigned_transaction(
+            coins, puzzlehash_amount_sig_list, ap_puzzle
         )
         signed_tx = await self.ap_sign_transaction(transaction, sigs)
         return signed_tx
