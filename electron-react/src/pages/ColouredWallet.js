@@ -21,7 +21,7 @@ import {
   farm_block,
   rename_cc_wallet
 } from "../modules/message";
-import { mojo_to_chia_string, chia_to_mojo } from "../util/chia";
+import { mojo_to_chia_string, chia_to_mojo, mojo_to_colouredcoin_string } from "../util/chia";
 import { unix_to_short_date } from "../util/utils";
 import Accordion from "../components/Accordion";
 import { openDialog } from "../modules/dialogReducer";
@@ -189,8 +189,6 @@ const useStyles = makeStyles(theme => ({
 
 const ColourCard = props => {
   var id = props.wallet_id;
-  // console.log("AAAAAAAAA");
-  // console.log(id);
 
   const dispatch = useDispatch();
   const colour = useSelector(state => state.wallet_state.wallets[id].colour);
@@ -270,6 +268,10 @@ const ColourCard = props => {
 
 const BalanceCardSubSection = props => {
   const classes = useStyles();
+  var cc_unit = props.name
+  if (cc_unit.length > 10) {
+    cc_unit = cc_unit.substring(0,10) + '...'
+  }
   return (
     <Grid item xs={12}>
       <div className={classes.cardSubSection}>
@@ -279,7 +281,7 @@ const BalanceCardSubSection = props => {
           </Box>
           <Box>
             <Typography variant="subtitle1">
-              {mojo_to_chia_string(props.balance)} XCH
+              {mojo_to_colouredcoin_string(props.balance)} {cc_unit}
             </Typography>
           </Box>
         </Box>
@@ -290,15 +292,15 @@ const BalanceCardSubSection = props => {
 
 const BalanceCard = props => {
   var id = props.wallet_id;
+  const name = useSelector(state => state.wallet_state.wallets[id].name);
   const balance = useSelector(
     state => state.wallet_state.wallets[id].balance_total
   );
-  const balance_spendable = useSelector(
+  var balance_spendable = useSelector(
     state => state.wallet_state.wallets[id].balance_spendable
   );
-  var balance_spendable_chia = mojo_to_chia_string(balance_spendable, "mojo");
-  if (balance_spendable_chia < 0) {
-    balance_spendable_chia = 0;
+  if (balance_spendable < 0) {
+    balance_spendable = 0;
   }
   const balance_pending = useSelector(
     state => state.wallet_state.wallets[id].balance_pending
@@ -307,6 +309,11 @@ const BalanceCard = props => {
     state => state.wallet_state.wallets[id].balance_change
   );
   const balance_ptotal = balance + balance_pending + balance_change;
+
+  var cc_unit = name
+  if (cc_unit.length > 10) {
+    cc_unit = cc_unit.substring(0,10) + '...'
+  }
 
   const balancebox_1 = "<table width='100%'>";
   const balancebox_2 = "<tr><td align='left'>";
@@ -317,19 +324,19 @@ const BalanceCard = props => {
   const balancebox_ptotal = "Pending Total Balance";
   const balancebox_pending = "Pending Transactions";
   const balancebox_change = "Pending Change";
-  const balancebox_xch = " XCH";
+  const balancebox_unit = " " + cc_unit;
   const balancebox_hline =
     "<tr><td colspan='2' style='text-align:center'><hr width='50%'></td></tr>";
-  const balance_ptotal_chia = mojo_to_chia_string(balance_ptotal, "mojo");
-  const balance_pending_chia = mojo_to_chia_string(balance_pending, "mojo");
-  const balance_change_chia = mojo_to_chia_string(balance_change, "mojo");
+  const balance_ptotal_chia = mojo_to_colouredcoin_string(balance_ptotal, "mojo");
+  const balance_pending_chia = mojo_to_colouredcoin_string(balance_pending, "mojo");
+  const balance_change_chia = mojo_to_colouredcoin_string(balance_change, "mojo");
   const acc_content =
     balancebox_1 +
     balancebox_2 +
     balancebox_ptotal +
     balancebox_3 +
     balance_ptotal_chia +
-    balancebox_xch +
+    balancebox_unit +
     balancebox_hline +
     balancebox_4 +
     balancebox_row +
@@ -337,14 +344,14 @@ const BalanceCard = props => {
     balancebox_pending +
     balancebox_3 +
     balance_pending_chia +
-    balancebox_xch +
+    balancebox_unit +
     balancebox_4 +
     balancebox_row +
     balancebox_2 +
     balancebox_change +
     balancebox_3 +
     balance_change_chia +
-    balancebox_xch +
+    balancebox_unit +
     balancebox_5;
 
   const classes = useStyles();
@@ -358,10 +365,11 @@ const BalanceCard = props => {
             </Typography>
           </div>
         </Grid>
-        <BalanceCardSubSection title="Total Balance" balance={balance} />
+        <BalanceCardSubSection title="Total Balance" balance={balance} name={name}/>
         <BalanceCardSubSection
           title="Spendable Balance"
           balance={balance_spendable}
+          name={name}
         />
         <Grid item xs={12}>
           <div className={classes.cardSubSection}>

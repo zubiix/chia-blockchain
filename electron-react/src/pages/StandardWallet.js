@@ -211,9 +211,8 @@ const BalanceCard = props => {
   const balance_spendable = useSelector(
     state => state.wallet_state.wallets[id].balance_spendable
   );
-  var balance_spendable_chia = mojo_to_chia_string(balance_spendable, "mojo");
-  if (balance_spendable_chia < 0) {
-    balance_spendable_chia = 0;
+  if (balance_spendable < 0) {
+    balance_spendable = 0;
   }
   const balance_pending = useSelector(
     state => state.wallet_state.wallets[id].balance_pending
