@@ -261,12 +261,6 @@ class APWallet:
             spends.append((my_puz, CoinSolution(coin, solution)))
         return spends, sigs
 
-    # this allows wallet A to approve of new puzzlehashes/spends from wallet B that weren't in the original list
-    def ap_sign_output_newpuzzlehash(self, puzzlehash, newpuzzlehash, b_pubkey_used):
-        pubkey, secretkey = self.get_keys(puzzlehash, None, b_pubkey_used)
-        signature = secretkey.sign(newpuzzlehash)
-        return signature
-
     # this is for sending a locked coin
     # Wallet B must sign the whole transaction, and the appropriate puzhash signature from A must be included
     async def ap_sign_transaction(
