@@ -8,7 +8,6 @@ const aliases = {
   chia: ["ch", "chia", "Chia"],
   mojo: ["mj", "mojo"],
   colouredcoin: ["cc", "colouredcoin"]
-
 };
 
 const display = {
