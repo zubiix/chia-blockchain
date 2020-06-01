@@ -5,7 +5,7 @@ import signal
 import time
 import traceback
 from pathlib import Path
-from blspy import ExtendedPrivateKey
+from blspy import ExtendedPrivateKey, PublicKey
 
 from typing import List, Optional, Tuple
 
@@ -32,7 +32,7 @@ from src.util.logging import initialize_logging
 from src.wallet.util.wallet_types import WalletType
 from src.wallet.rl_wallet.rl_wallet import RLWallet
 from src.wallet.cc_wallet.cc_wallet import CCWallet
-# from src.wallet.ap_wallet.ap_wallet import APWallet
+from src.wallet.ap_wallet.ap_wallet import APWallet
 from src.wallet.wallet_info import WalletInfo
 from src.wallet.wallet_node import WalletNode
 from src.types.mempool_inclusion_status import MempoolInclusionStatus
@@ -370,8 +370,10 @@ class WebSocketServer:
                 response = {"success": True, "type": cc_wallet.wallet_info.type.name}
                 return response
         elif request["wallet_type"] == "ap_wallet":
-            print()
-            # ap_wallet = await APWallet.create_new_wallet(wallet_state_manager, main_wallet)
+            pubkey = PublicKey.from_bytes(bytes(request["pubkey"]))
+            ap_wallet = await APWallet.create_new_wallet(wallet_state_manager, main_wallet, pubkey)
+            response = {"success": True, "type": ap_wallet.wallet_info.type.name}
+            return response
 
         response = {"success": False}
         return response
