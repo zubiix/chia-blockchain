@@ -35,7 +35,6 @@ class APWallet:
     async def create_wallet_for_ap(
         wallet_state_manager: Any,
         wallet: Wallet,
-        authoriser_pubkey: PublicKey,
         name: str = None,
     ):
 
@@ -49,7 +48,7 @@ class APWallet:
             self.log = logging.getLogger(__name__)
 
         self.wallet_state_manager = wallet_state_manager
-        self.ap_info = APInfo(bytes(authoriser_pubkey), None, [], None)
+        self.ap_info = APInfo(None, None, [], None)
         info_as_string = bytes(self.ap_info).hex()
         self.wallet_info = await wallet_state_manager.user_store.create_wallet(
             "AP Wallet", WalletType.COLOURED_COIN, info_as_string
@@ -61,7 +60,7 @@ class APWallet:
             self.wallet_info.id
         )
         pubkey = devrec.pubkey
-        self.ap_info = APInfo(bytes(authoriser_pubkey), bytes(pubkey), [], None)
+        self.ap_info = APInfo(None, bytes(pubkey), [], None)
         return self
 
     async def set_sender_values(self, a_pubkey_used, sig=None):
@@ -151,6 +150,9 @@ class APWallet:
         )
         await self.save_info(new_ap_info)
         return
+
+    def get_my_pubkey(self):
+        return self.ap_info.my_pubkey
 
     def get_contacts(self):
         return self.ap_info.contacts
