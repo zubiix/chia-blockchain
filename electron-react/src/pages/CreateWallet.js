@@ -14,12 +14,17 @@ import ListItemText from "@material-ui/core/ListItemText";
 import {
   changeCreateWallet,
   ALL_OPTIONS,
+  CREATE_AP_WALLET_OPTIONS,
+  CREATE_AUTHORIZER_AP,
+  CREATE_SPENDER_AP,
   CREATE_CC_WALLET_OPTIONS,
   CRAETE_EXISTING_CC,
   CREATE_NEW_CC
 } from "../modules/createWalletReducer";
 import { useDispatch, useSelector } from "react-redux";
 import ArrowBackIosIcon from "@material-ui/icons/ArrowBackIos";
+import { CreateAuthorizerAPWallet } from "./createAuthorizerAPWallet";
+import { CreateSpenderAPWallet } from "./createSpenderAPWallet";
 import { CreateNewCCWallet } from "./createNewColouredCoin";
 import { CreateExistingCCWallet } from "./createExistingColouredCoin";
 import InvertColorsIcon from "@material-ui/icons/InvertColors";
@@ -73,7 +78,11 @@ export const MainWalletList = () => {
   const dispatch = useDispatch();
   const classes = useStyles();
 
-  function select_option() {
+  function select_option_ap() {
+    dispatch(changeCreateWallet(CREATE_AP_WALLET_OPTIONS));
+  }
+
+  function select_option_cc() {
     dispatch(changeCreateWallet(CREATE_CC_WALLET_OPTIONS));
   }
 
@@ -85,11 +94,67 @@ export const MainWalletList = () => {
         </Typography>
       </div>
       <List>
-        <ListItem button onClick={select_option}>
+        <ListItem button onClick={select_option_ap}>
+          <ListItemIcon>
+            <InvertColorsIcon />
+          </ListItemIcon>
+          <ListItemText primary="Authorized Payees" />
+        </ListItem>
+        <ListItem button onClick={select_option_cc}>
           <ListItemIcon>
             <InvertColorsIcon />
           </ListItemIcon>
           <ListItemText primary="Coloured Coin" />
+        </ListItem>
+      </List>
+    </div>
+  );
+};
+
+export const APListItems = () => {
+  const classes = useStyles();
+  const dispatch = useDispatch();
+
+  function goBack() {
+    dispatch(changeCreateWallet(ALL_OPTIONS));
+  }
+
+  function select_option_authorizer() {
+    dispatch(changeCreateWallet(CREATE_AUTHORIZER_AP));
+  }
+
+  function select_option_spender() {
+    dispatch(changeCreateWallet(CREATE_SPENDER_AP));
+  }
+
+  return (
+    <div>
+      <div className={classes.cardTitle}>
+        <Box display="flex">
+          <Box>
+            <Button onClick={goBack}>
+              <ArrowBackIosIcon> </ArrowBackIosIcon>
+            </Button>
+          </Box>
+          <Box flexGrow={1} className={classes.title}>
+            <Typography component="h6" variant="h6">
+              Authorized Payees Options
+            </Typography>
+          </Box>
+        </Box>
+      </div>
+      <List>
+        <ListItem button onClick={select_option_authorizer}>
+          <ListItemIcon>
+            <InvertColorsIcon />
+          </ListItemIcon>
+          <ListItemText primary="Create wallet as an authorizer" />
+        </ListItem>
+        <ListItem button onClick={select_option_spender}>
+          <ListItemIcon>
+            <InvertColorsIcon />
+          </ListItemIcon>
+          <ListItemText primary="Create wallet as a spender" />
         </ListItem>
       </List>
     </div>
@@ -151,6 +216,12 @@ const CreateViewSwitch = () => {
 
   if (view === ALL_OPTIONS) {
     return <MainWalletList></MainWalletList>;
+  } else if (view === CREATE_AP_WALLET_OPTIONS) {
+    return <APListItems></APListItems>;
+  } else if (view === CREATE_AUTHORIZER_AP) {
+    return <CreateAuthorizerAPWallet></CreateAuthorizerAPWallet>;
+  } else if (view === CREATE_SPENDER_AP) {
+    return <CreateSpenderAPWallet></CreateSpenderAPWallet>;
   } else if (view === CREATE_CC_WALLET_OPTIONS) {
     return <CCListItems></CCListItems>;
   } else if (view === CREATE_NEW_CC) {
