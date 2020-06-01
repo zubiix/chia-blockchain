@@ -7,6 +7,10 @@ and this project does not yet adhere to [Semantic Versioning](https://semver.org
 
 ## [Unreleased]
 
+- test plots now go into `~/.chia/test-plots/`
+
+## [1.0beta6] aka Beta 1.6 - 2020-06-01
+
 ### Added
 
 - Windows and MacOS now have one click installers that then send users to a GUI on both platforms to farm or use their wallets. Windows is built on GitHub Actions and MacOS is also built on Azure Pipelines so as to build on Mojave.
