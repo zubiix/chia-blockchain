@@ -103,7 +103,7 @@ async function track_progress(store, location) {
   const Tail = window.require("tail").Tail;
 
   const dispatch = store.dispatch;
-  var options = { fromBeginning: true, follow: true };
+  var options = { fromBeginning: true, follow: true, useWatchFile: true };
   if (!location) {
     return;
   }
@@ -113,6 +113,9 @@ async function track_progress(store, location) {
     const tail = new Tail(location, options);
     tail.on("line", data => {
       dispatch(addProgress(data));
+      if (data.includes("Summary:")) {
+        dispatch(refreshPlots());
+      }
     });
     tail.on("error", err => {
       dispatch(addProgress(err));
