@@ -1,22 +1,16 @@
 import asyncio
 import time
-from pathlib import Path
-from secrets import token_bytes
 
 import pytest
 
-from src.protocols import full_node_protocol
-from src.simulator.simulator_protocol import FarmNewBlockProtocol, ReorgProtocol
+from src.simulator.simulator_protocol import FarmNewBlockProtocol
 from src.types.peer_info import PeerInfo
 from src.util.ints import uint16, uint32, uint64
-from src.wallet.trade_manager import TradeManager
 from tests.setup_nodes import setup_simulators_and_wallets
 from src.consensus.block_rewards import calculate_base_fee, calculate_block_reward
 from src.wallet.ap_wallet.ap_wallet import APWallet
 from src.wallet.ap_wallet import ap_puzzles
-from src.wallet.wallet_coin_record import WalletCoinRecord
 from src.wallet.transaction_record import TransactionRecord
-from typing import List
 from src.types.BLSSignature import BLSSignature
 from src.types.coin_solution import CoinSolution
 from blspy import PublicKey
@@ -163,7 +157,6 @@ class TestWalletSimulator:
         await self.time_out_assert(15, ap_wallet.get_unconfirmed_balance, 80)
         await self.time_out_assert(15, wallet2.get_confirmed_balance, 20)
         await self.time_out_assert(15, wallet2.get_unconfirmed_balance, 20)
-
 
     @pytest.mark.asyncio
     async def test_siphon_value_from_spend(self, two_wallet_nodes):
