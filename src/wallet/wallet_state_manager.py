@@ -19,7 +19,6 @@ from src.types.header_block import HeaderBlock
 from src.util.byte_types import hexstr_to_bytes
 from src.util.ints import uint32, uint64
 from src.util.hash import std_hash
-from src.util.keychain import Keychain
 from src.wallet.cc_wallet.cc_wallet import CCWallet
 from src.wallet.cc_wallet import cc_wallet_puzzles
 from src.wallet.transaction_record import TransactionRecord

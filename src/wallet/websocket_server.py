@@ -370,7 +370,8 @@ class WebSocketServer:
                 response = {"success": True, "type": cc_wallet.wallet_info.type.name}
                 return response
         elif request["wallet_type"] == "ap_wallet":
-            ap_wallet = await APWallet.create_new_wallet(wallet_state_manager, main_wallet)
+            print()
+            # ap_wallet = await APWallet.create_new_wallet(wallet_state_manager, main_wallet)
 
         response = {"success": False}
         return response

@@ -12,7 +12,6 @@ from blspy import ExtendedPrivateKey
 from src.full_node.full_node import OutboundMessageGenerator
 from src.types.peer_info import PeerInfo
 from src.util.byte_types import hexstr_to_bytes
-from src.util.keychain import Keychain
 from src.util.merkle_set import (
     confirm_included_already_hashed,
     confirm_not_included_already_hashed,
