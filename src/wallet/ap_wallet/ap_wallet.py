@@ -67,7 +67,7 @@ class APWallet:
     async def set_sender_values(self, a_pubkey_used, sig=None):
         if sig is not None:
             ap_info = APInfo(
-                a_pubkey_used, self.ap_info.my_pubkey, self.ap_info.contacts, sig
+                a_pubkey_used, self.ap_info.my_pubkey, self.ap_info.contacts, bytes(sig)
             )
         else:
             ap_info = APInfo(
@@ -94,7 +94,7 @@ class APWallet:
         await self.wallet_state_manager.puzzle_store.add_derivation_paths(
             derivation_paths
         )
-        return
+        return True
 
     async def coin_added(
         self, coin: Coin, height: int, header_hash: bytes32, removals: List[Coin]
@@ -150,10 +150,13 @@ class APWallet:
             self.ap_info.change_signature,
         )
         await self.save_info(new_ap_info)
-        return
+        return True
 
     def get_contacts(self):
         return self.ap_info.contacts
+
+    def get_my_pubkey(self):
+        return self.ap_info.my_pubkey
 
     def puzzle_for_pk(self, pubkey) -> Program:
         ap_puzzle: Program = ap_puzzles.ap_make_puzzle(

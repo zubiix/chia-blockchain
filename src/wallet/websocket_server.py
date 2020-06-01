@@ -422,6 +422,45 @@ class WebSocketServer:
 
         return response
 
+    async def ap_set_signer_info(self, request):
+        wallet_id = int(request["wallet_id"])
+        wallet: APWallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
+        pubkey = request["a_pubkey"]
+        change_sig = request["signature"]
+
+        success = await wallet.set_sender_values(pubkey, change_sig)
+        response = {"success": success}
+
+        return response
+
+    async def ap_get_contacts(self, request):
+        wallet_id = int(request["wallet_id"])
+        wallet: APWallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
+
+        contacts = wallet.get_contacts()
+        if contacts is None:
+            contacts = []
+        response = {"success": True, "contacts": contacts}
+        return response
+
+    async def ap_add_contact(self, request):
+        wallet_id = int(request["wallet_id"])
+        wallet: APWallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
+
+        success = await wallet.add_contact(request["name"], request["puzhash"], request["new_signature"])
+        response = {"success": success}
+        return response
+
+    async def ap_get_my_pubey(self, request):
+        wallet_id = int(request["wallet_id"])
+        wallet: APWallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
+
+        pubkey = wallet.get_my_pubkey()
+        if pubkey is not None:
+            return {"success": True, "contacts": pubkey}
+        else:
+            return {"success": False}
+
     async def cc_set_name(self, request):
         wallet_id = int(request["wallet_id"])
         wallet: CCWallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
