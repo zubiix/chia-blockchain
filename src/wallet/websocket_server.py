@@ -453,7 +453,7 @@ class WebSocketServer:
         response = {"success": success}
         return response
 
-    async def ap_get_my_pubey(self, request):
+    async def ap_get_my_pubkey(self, request):
         wallet_id = int(request["wallet_id"])
         wallet: APWallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
 
