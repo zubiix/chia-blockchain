@@ -89,14 +89,15 @@ class TestWalletSimulator:
         await self.time_out_assert(15, wallet.get_confirmed_balance, funds)
 
         # Get pubkeys for creating the puzzle
-        devrec = await wallet.wallet_state_manager.get_unused_derivation_record(
-            wallet.wallet_info.id
-        )
-        ap_pubkey_a = devrec.pubkey
+        ap_pubkey_a = await wallet.get_new_pubkey()
         ap_wallet: APWallet = await APWallet.create_wallet_for_ap(
             wallet_node_2.wallet_state_manager, wallet2, ap_pubkey_a
         )
         ap_pubkey_b = ap_wallet.ap_info.my_pubkey
+
+        await wallet.add_new_ap_info("test_contact", ap_pubkey_a, ap_pubkey_b)
+        contacts = await wallet.get_ap_info()
+        assert contacts[0] == ("test_contact", bytes(ap_pubkey_a), bytes(ap_pubkey_b))
 
         ap_puz = ap_puzzles.ap_make_puzzle(ap_pubkey_a, ap_pubkey_b)
         sig = await wallet.sign(ap_puz.get_tree_hash(), bytes(ap_pubkey_a))

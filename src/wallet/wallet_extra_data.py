@@ -7,4 +7,4 @@ from src.util.streamable import streamable, Streamable
 @dataclass(frozen=True)
 @streamable
 class ExtraWalletData(Streamable):
-    authorisations = Optional[List[Tuple[str, bytes48, bytes48]]]  # Optional list of (name, my_pubkey, their pubkey)
+    authorisations: Optional[List[Tuple[str, bytes48, bytes48]]]  # Optional list of (name, my_pubkey, their pubkey)

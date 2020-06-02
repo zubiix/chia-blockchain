@@ -30,6 +30,7 @@ from src.wallet.wallet_coin_record import WalletCoinRecord
 from src.wallet.wallet_info import WalletInfo
 from src.wallet.wallet_extra_data import ExtraWalletData
 from src.util.byte_types import hexstr_to_bytes
+from blspy import PublicKey
 
 
 class Wallet:
@@ -437,8 +438,9 @@ class Wallet:
                 sigs.append(signature)
         return sigs
 
-    async def sign(self, value, pubkey):
-        index = await self.wallet_state_manager.puzzle_store.index_for_pubkey(pubkey)
+    async def sign(self, value: bytes, pubkey: bytes):
+        publickey = PublicKey.from_bytes(bytes(pubkey))
+        index = await self.wallet_state_manager.puzzle_store.index_for_pubkey(publickey)
         private = self.wallet_state_manager.private_key.private_child(
             index
         ).get_private_key()

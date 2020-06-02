@@ -33,6 +33,7 @@ from src.wallet.util.wallet_types import WalletType
 from src.wallet.rl_wallet.rl_wallet import RLWallet
 from src.wallet.cc_wallet.cc_wallet import CCWallet
 from src.wallet.ap_wallet.ap_wallet import APWallet
+from src.wallet.wallet import Wallet
 from src.wallet.wallet_info import WalletInfo
 from src.wallet.wallet_node import WalletNode
 from src.types.mempool_inclusion_status import MempoolInclusionStatus
@@ -422,6 +423,7 @@ class WebSocketServer:
 
         return response
 
+    # AP Wallet
     async def ap_set_signer_info(self, request):
         wallet_id = int(request["wallet_id"])
         wallet: APWallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
@@ -460,6 +462,31 @@ class WebSocketServer:
             return {"success": True, "contacts": pubkey}
         else:
             return {"success": False}
+
+    async def add_ap_info_to_wallet(self, request):  # This for the AP features in the standard wallet
+        wallet_id = int(request["wallet_id"])
+        wallet: Wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
+        if wallet.wallet_info.wallet_type != WalletType.STANDARD_WALLET:
+            return {"success": False, "reason": "ERROR: not a standard wallet"}
+        success = await wallet.add_new_ap_info(request["name"], request["a_pubkey"], request["b_pubkey"])
+        return {"success": success}
+
+    async def get_ap_info_from_wallet(self, request):  # This for the AP features in the standard wallet
+        wallet_id = int(request["wallet_id"])
+        wallet: Wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
+        if wallet.wallet_info.wallet_type != WalletType.STANDARD_WALLET:
+            return {"success": False, "reason": "ERROR: not a standard wallet"}
+        authorisations = wallet.get_ap_info()
+        return {"success": True, "authorisations": authorisations}
+
+    async def wallet_sign(self, request):
+        wallet_id = int(request["wallet_id"])
+        wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
+        if wallet.wallet_info.wallet_type != WalletType.STANDARD_WALLET:
+            sig = await wallet.standard_wallet.sign(bytes(request["message"]), bytes(request["pubkey"]))
+        else:
+            sig = await wallet.sign(bytes(request["message"]), bytes(request["pubkey"]))
+        return {"success": True, "signature": sig}
 
     async def cc_set_name(self, request):
         wallet_id = int(request["wallet_id"])
