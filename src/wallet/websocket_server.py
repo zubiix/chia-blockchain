@@ -822,6 +822,24 @@ class WebSocketServer:
             return await self.rl_set_admin_info(data)
         elif command == "rl_set_user_info":
             return await self.rl_set_user_info(data)
+        elif command == "ap_set_signer_info":
+            return await self.ap_set_signer_info(data)
+        elif command == "ap_get_contacts":
+            return await self.ap_get_contacts(data)
+        elif command == "ap_add_contact":
+            return await self.ap_add_contact(data)
+        elif command == "ap_get_my_pubkey":
+            return await self.ap_get_my_pubkey(data)
+        elif command == "ap_spend":
+            return await self.ap_spend(data)
+        elif command == "add_ap_info_to_wallet":
+            return await self.add_ap_info_to_wallet(data)
+        elif command == "get_ap_info_from_wallet":
+            return await self.get_ap_info_from_wallet(data)
+        elif command == "wallet_sign":
+            return await self.wallet_sign(data)
+        elif command == "get_unused_pubkey":
+            return self.get_unused_pubkey(data)
         elif command == "cc_set_name":
             return await self.cc_set_name(data)
         elif command == "cc_get_name":
