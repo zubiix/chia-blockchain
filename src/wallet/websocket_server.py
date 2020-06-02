@@ -488,6 +488,16 @@ class WebSocketServer:
             sig = await wallet.sign(bytes(request["message"]), bytes(request["pubkey"]))
         return {"success": True, "signature": sig}
 
+    async def get_unused_pubkey(self, request):
+        wallet_id = int(request["wallet_id"])
+        wallet: Wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
+        if wallet.wallet_info.wallet_type != WalletType.STANDARD_WALLET:
+            return {"success": False, "reason": "ERROR: not a standard wallet"}
+        pubkey = bytes(wallet.get_new_pubkey())
+        if pubkey is None:
+            return {"success": False, "reason": "Bad pubkey"}
+        return {"success": True, "pubkey": pubkey}
+
     async def cc_set_name(self, request):
         wallet_id = int(request["wallet_id"])
         wallet: CCWallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
