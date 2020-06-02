@@ -16,6 +16,7 @@ from src.wallet.wallet import Wallet
 from src.wallet.wallet_coin_record import WalletCoinRecord
 from src.wallet.wallet_info import WalletInfo
 from src.wallet.derivation_record import DerivationRecord
+from src.util.byte_types import hexstr_to_bytes
 from src.wallet.ap_wallet import ap_puzzles
 from blspy import PublicKey
 from src.util.hash import std_hash
@@ -62,6 +63,28 @@ class APWallet:
         )
         pubkey = devrec.pubkey
         self.ap_info = APInfo(bytes(authoriser_pubkey), bytes(pubkey), [], None)
+        return self
+
+    @staticmethod
+    async def create(
+        wallet_state_manager: Any,
+        wallet: Wallet,
+        wallet_info: WalletInfo,
+        name: str = None,
+    ):
+        self = APWallet()
+
+        if name:
+            self.log = logging.getLogger(name)
+        else:
+            self.log = logging.getLogger(__name__)
+
+        self.wallet_state_manager = wallet_state_manager
+        self.wallet_info = wallet_info
+        self.standard_wallet = wallet
+        self.cc_info = APInfo.from_bytes(hexstr_to_bytes(self.wallet_info.data))
+        self.base_puzzle_program = None
+        self.base_inner_puzzle_hash = None
         return self
 
     async def set_sender_values(self, a_pubkey_used, sig=None):

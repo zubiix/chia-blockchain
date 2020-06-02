@@ -21,4 +21,4 @@ class WalletInfo(Streamable):
     id: uint32
     name: str
     type: WalletType
-    data: str
+    data: str  # hex encoding of wallet specific data

@@ -7,7 +7,7 @@ from src.types.coin import Coin
 from src.types.coin_solution import CoinSolution
 from src.types.program import Program
 from src.types.spend_bundle import SpendBundle
-from src.types.sized_bytes import bytes32
+from src.types.sized_bytes import bytes32, bytes48
 from src.util.condition_tools import (
     conditions_for_solution,
     conditions_dict_for_solution,
@@ -28,12 +28,15 @@ from src.wallet.puzzles.puzzle_utils import (
 from src.wallet.transaction_record import TransactionRecord
 from src.wallet.wallet_coin_record import WalletCoinRecord
 from src.wallet.wallet_info import WalletInfo
+from src.wallet.wallet_extra_data import ExtraWalletData
+from src.util.byte_types import hexstr_to_bytes
 
 
 class Wallet:
     wallet_state_manager: Any
     log: logging.Logger
     wallet_info: WalletInfo
+    extra_data: ExtraWalletData
 
     @staticmethod
     async def create(
@@ -49,6 +52,10 @@ class Wallet:
         self.wallet_state_manager = wallet_state_manager
 
         self.wallet_info = info
+        if self.wallet_info.data == "":
+            self.extra_data = None
+        else:
+            self.extra_data = ExtraWalletData.from_bytes(hexstr_to_bytes(self.wallet_info.data))
 
         return self
 
@@ -115,6 +122,13 @@ class Wallet:
                 self.wallet_info.id
             )
         ).puzzle_hash
+
+    async def get_new_pubkey(self) -> bytes48:
+        return (
+            await self.wallet_state_manager.get_unused_derivation_record(
+                self.wallet_info.id
+            )
+        ).pubkey
 
     def make_solution(
         self, primaries=None, min_time=0, me=None, consumed=None, fee=None
@@ -480,3 +494,26 @@ class Wallet:
         aggsig = BLSSignature.aggregate(sigs)
         spend_bundle = SpendBundle(list_of_solutions, aggsig)
         return spend_bundle
+
+    async def add_new_ap_info(self, name, my_pubkey, b_pubkey):
+        authorisations = self.extra_data.authorisations
+        authorisations.append((name, bytes(my_pubkey), bytes(b_pubkey)))
+        new_extra_data = ExtraWalletData(authorisations)
+        await self.save_info(new_extra_data)
+        return True
+
+    async def get_ap_info(self):
+        if self.extra_data.authorisations is not None:
+            return self.extra_data.authorisations
+        else:
+            return ""
+
+    async def save_info(self, extra_data: ExtraWalletData):
+        self.extra_data = extra_data
+        current_info = self.wallet_info
+        data_str = bytes(extra_data).hex()
+        wallet_info = WalletInfo(
+            current_info.id, current_info.name, current_info.type, data_str
+        )
+        self.wallet_info = wallet_info
+        await self.wallet_state_manager.user_store.update_wallet(wallet_info)
