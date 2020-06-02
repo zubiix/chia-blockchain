@@ -496,8 +496,11 @@ class Wallet:
         return spend_bundle
 
     async def add_new_ap_info(self, name, my_pubkey, b_pubkey):
-        authorisations = self.extra_data.authorisations
-        authorisations.append((name, bytes(my_pubkey), bytes(b_pubkey)))
+        if self.extra_data is not None:
+            authorisations = self.extra_data.authorisations
+            authorisations.append((name, bytes(my_pubkey), bytes(b_pubkey)))
+        else:
+            authorisations = [(name, bytes(my_pubkey), bytes(b_pubkey))]
         new_extra_data = ExtraWalletData(authorisations)
         await self.save_info(new_extra_data)
         return True
