@@ -131,25 +131,9 @@ class TestWalletSimulator:
         assert sig.validate([sig.PkMessagePair(ap_pubkey_a, ph2)])
         await ap_wallet.add_contact("wallet2", ph2, sig)
 
+        # spend 20
         tx = await ap_wallet.ap_generate_signed_transaction(20, ph2)
         assert tx is not None
-
-        tx_record = TransactionRecord(
-            confirmed_at_index=uint32(0),
-            created_at_time=uint64(int(time.time())),
-            to_puzzle_hash=ph,
-            amount=uint64(20),
-            fee_amount=uint64(0),
-            incoming=False,
-            confirmed=False,
-            sent=uint32(0),
-            spend_bundle=tx,
-            additions=tx.additions(),
-            removals=tx.removals(),
-            wallet_id=ap_wallet.wallet_info.id,
-            sent_to=[],
-        )
-        await ap_wallet.wallet_state_manager.add_pending_transaction(tx_record)
 
         for i in range(1, num_blocks):
             await full_node_1.farm_new_block(FarmNewBlockProtocol(ph))
@@ -263,25 +247,8 @@ class TestWalletSimulator:
 
         assert tx is not None
 
-        tx_record = TransactionRecord(
-            confirmed_at_index=uint32(0),
-            created_at_time=uint64(int(time.time())),
-            to_puzzle_hash=ph,
-            amount=uint64(20),
-            fee_amount=uint64(0),
-            incoming=False,
-            confirmed=False,
-            sent=uint32(0),
-            spend_bundle=tx,
-            additions=tx.additions(),
-            removals=tx.removals(),
-            wallet_id=ap_wallet.wallet_info.id,
-            sent_to=[],
-        )
-        await ap_wallet.wallet_state_manager.add_pending_transaction(tx_record)
-
         await self.time_out_assert(15, ap_wallet.get_confirmed_balance, 100)
-        await self.time_out_assert(15, ap_wallet.get_unconfirmed_balance, 80)
+        await self.time_out_assert(15, ap_wallet.get_unconfirmed_balance, 100)
 
     @pytest.mark.asyncio
     async def test_ap_spend_multiple(self, two_wallet_nodes):
@@ -372,23 +339,6 @@ class TestWalletSimulator:
         tx = await ap_wallet.ap_generate_signed_transaction(170, ph2)
         assert tx is not None
 
-        tx_record = TransactionRecord(
-            confirmed_at_index=uint32(0),
-            created_at_time=uint64(int(time.time())),
-            to_puzzle_hash=ph,
-            amount=uint64(20),
-            fee_amount=uint64(0),
-            incoming=False,
-            confirmed=False,
-            sent=uint32(0),
-            spend_bundle=tx,
-            additions=tx.additions(),
-            removals=tx.removals(),
-            wallet_id=ap_wallet.wallet_info.id,
-            sent_to=[],
-        )
-        await ap_wallet.wallet_state_manager.add_pending_transaction(tx_record)
-
         for i in range(1, num_blocks):
             await full_node_1.farm_new_block(FarmNewBlockProtocol(ph))
 
@@ -478,24 +428,8 @@ class TestWalletSimulator:
 
         assert tx is not None
 
-        tx_record = TransactionRecord(
-            confirmed_at_index=uint32(0),
-            created_at_time=uint64(int(time.time())),
-            to_puzzle_hash=ph,
-            amount=uint64(amount),
-            fee_amount=uint64(0),
-            incoming=False,
-            confirmed=False,
-            sent=uint32(0),
-            spend_bundle=tx,
-            additions=tx.additions(),
-            removals=tx.removals(),
-            wallet_id=ap_wallet.wallet_info.id,
-            sent_to=[],
-        )
-        await ap_wallet.wallet_state_manager.add_pending_transaction(tx_record)
         for i in range(1, num_blocks):
             await full_node_1.farm_new_block(FarmNewBlockProtocol(ph))
 
         await self.time_out_assert(15, ap_wallet.get_confirmed_balance, 100)
-        await self.time_out_assert(15, ap_wallet.get_unconfirmed_balance, 0)
+        await self.time_out_assert(15, ap_wallet.get_unconfirmed_balance, 100)

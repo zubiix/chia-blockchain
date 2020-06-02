@@ -463,6 +463,63 @@ class WebSocketServer:
         else:
             return {"success": False}
 
+    async def ap_spend(self, request):
+        wallet_id = int(request["wallet_id"])
+        wallet: APWallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
+        if wallet.wallet_info.wallet_type != WalletType.AUTHORIZED_PAYEE:
+            return {"success": False, "reason": "ERROR: not an AP wallet"}
+        try:
+            tx = await wallet.ap_generate_signed_transaction(request["amount"], request["puzhash"])
+        except BaseException as e:
+            data = {
+                "status": "FAILED",
+                "reason": f"{e}",
+            }
+            return data
+
+        if tx is None:
+            data = {
+                "status": "FAILED",
+                "reason": "Failed to generate signed transaction",
+            }
+            return data
+
+        self.log.error(tx)
+        sent = False
+        start = time.time()
+        while time.time() - start < TIMEOUT:
+            sent_to: List[
+                Tuple[str, MempoolInclusionStatus, Optional[str]]
+            ] = await self.wallet_node.wallet_state_manager.get_transaction_status(
+                tx.name()
+            )
+
+            if len(sent_to) == 0:
+                await asyncio.sleep(0.1)
+                continue
+            status, err = sent_to[0][1], sent_to[0][2]
+            if status == MempoolInclusionStatus.SUCCESS:
+                data = {"status": "SUCCESS"}
+                sent = True
+                break
+            elif status == MempoolInclusionStatus.PENDING:
+                assert err is not None
+                data = {"status": "PENDING", "reason": err}
+                sent = True
+                break
+            elif status == MempoolInclusionStatus.FAILED:
+                assert err is not None
+                data = {"status": "FAILED", "reason": err}
+                sent = True
+                break
+        if not sent:
+            data = {
+                "status": "FAILED",
+                "reason": "Timed out. Transaction may or may not have been sent.",
+            }
+
+        return data
+
     async def add_ap_info_to_wallet(self, request):  # This for the AP features in the standard wallet
         wallet_id = int(request["wallet_id"])
         wallet: Wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]

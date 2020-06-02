@@ -1,3 +1,4 @@
+import time
 import logging
 import clvm
 from typing import Dict, Optional, List, Any, Set
@@ -362,8 +363,26 @@ class APWallet:
         transaction, sigs = await self.ap_generate_unsigned_transaction(
             coins, puzzlehash_amount_sig_list, ap_puzzle
         )
-        signed_tx = await self.ap_sign_transaction(transaction, sigs)
-        return signed_tx
+
+        spend_bundle = await self.ap_sign_transaction(transaction, sigs)
+        
+        tx_record = TransactionRecord(
+            confirmed_at_index=uint32(0),
+            created_at_time=uint64(int(time.time())),
+            to_puzzle_hash=puzzlehash,
+            amount=uint64(amount),
+            fee_amount=uint64(0),
+            incoming=False,
+            confirmed=False,
+            sent=uint32(0),
+            spend_bundle=spend_bundle,
+            additions=spend_bundle.additions(),
+            removals=spend_bundle.removals(),
+            wallet_id=self.wallet_info.id,
+            sent_to=[],
+        )
+        await self.wallet_state_manager.add_pending_transaction(tx_record)
+        return spend_bundle
 
     async def save_info(self, ap_info: APInfo):
         self.ap_info = ap_info
