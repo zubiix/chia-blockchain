@@ -365,7 +365,6 @@ class APWallet:
         )
 
         spend_bundle = await self.ap_sign_transaction(transaction, sigs)
-        
         tx_record = TransactionRecord(
             confirmed_at_index=uint32(0),
             created_at_time=uint64(int(time.time())),
