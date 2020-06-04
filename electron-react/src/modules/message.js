@@ -125,6 +125,25 @@ export const get_connection_info = () => {
   return action;
 };
 
+export const create_ap_authorizer = wallet_id => {
+  var action = walletMessage();
+  action.message.command = "get_unused_pubkey";
+  action.message.data = {
+    wallet_id: wallet_id
+  };
+  return action;
+};
+
+export const create_ap_spender = pubkey => {
+  var action = walletMessage();
+  action.message.command = "create_new_wallet";
+  action.message.data = {
+    wallet_type: "ap_wallet",
+    pubkey: pubkey
+  };
+  return action;
+};
+
 export const create_coloured_coin = amount => {
   var action = walletMessage();
   action.message.command = "create_new_wallet";
