@@ -242,9 +242,7 @@ class WalletNode:
                 self.config["full_node_peer"]["host"],
                 self.config["full_node_peer"]["port"],
             )
-            task = asyncio.create_task(
-                start_reconnect_task(self.global_connections, peer_info, self.log)
-            )
+            task = start_reconnect_task(self.global_connections, peer_info, self.log)
             self.tasks.append(task)
         if self.local_test is False:
             self.tasks.append(asyncio.create_task(introducer_client()))
@@ -270,9 +268,7 @@ class WalletNode:
                 self.log.info(
                     f"Will not attempt to connect to other nodes, already connected to {full_node_peer}"
                 )
-                for (
-                    connection
-                ) in self.global_connections.get_full_node_connections():
+                for connection in self.global_connections.get_full_node_connections():
                     if connection.get_peer_info() != full_node_peer:
                         self.log.info(
                             f"Closing unnecessary connection to {connection.get_peer_info()}."
