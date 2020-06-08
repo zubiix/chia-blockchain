@@ -37,7 +37,7 @@ class Wallet:
     wallet_state_manager: Any
     log: logging.Logger
     wallet_info: WalletInfo
-    extra_data: ExtraWalletData
+    extra_data: Optional[ExtraWalletData]
 
     @staticmethod
     async def create(
@@ -447,7 +447,7 @@ class Wallet:
         pk = BLSPrivateKey(private)
 
         sig = pk.sign(value)
-        assert sig.validate([sig.PkMessagePair(pubkey, value)])
+        assert sig.validate([sig.PkMessagePair(publickey, value)])
         return sig
 
     # Create an offer spend bundle for chia given an amount of relative change (i.e -400 or 1000)
