@@ -5,7 +5,7 @@ on: [push]
 
 jobs:
   build:
-    name: Python 3.7 on macOS-latest
+    name: MacOS-latest on Pyton 3.7
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -25,8 +25,8 @@ jobs:
     - name: Import Apple app signing certificate
       uses: Apple-Actions/import-codesign-certs@v1
       with:
-        p12-file-base64: ${{ secrets.CERT_APP }}
-        p12-password: ${{ secrets.CERT_PASS }}
+        p12-file-base64: ${{ secrets.APPLE_DEV_ID_APP }}
+        p12-password: ${{ secrets.APPLE_DEV_ID_APP_PASS }}
 
     - name: Install MacOS dependencies
       run: |
@@ -68,7 +68,10 @@ jobs:
     - name: Build MacOS DMG in Catalina
       run: |
         . ./activate
-        cd build_scripts
+        cd ./electron-react
+        npm install
+        npm audit fix
+        cd ../build_scripts
         sh build_macos.sh
 
     - name: Test blockchain code with pytest
@@ -79,5 +82,5 @@ jobs:
     - name: Upload MacOS artifacts
       uses: actions/upload-artifact@v1
       with:
-        name: Chia-MacOS-10.15-dmg
-        path: ${{ github.workspace }}/build_scripts/Chia-0.1.6.dmg
+        name: Chia-Installer-on-MacOS-10.15-dmg
+        path: ${{ github.workspace }}/build_scripts/final_installer/

@@ -39,18 +39,15 @@ import {
   pingHarvester,
   refreshPlots
 } from "../modules/harvesterMessages";
-import {
-  changeEntranceMenu,
-  presentSelectKeys,
-  presentNewWallet
-} from "../modules/entranceMenu";
+import { changeEntranceMenu, presentSelectKeys } from "../modules/entranceMenu";
 import {
   addProgress,
   resetProgress,
+  plottingStopped,
   plottingStarted
 } from "../modules/plotter_messages";
 import isElectron from "is-electron";
-import { startService } from "../modules/daemon_messages";
+import { startService, isServiceRunning } from "../modules/daemon_messages";
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -96,6 +93,8 @@ async function ping_harvester(store) {
   }
 }
 
+let global_tail = null;
+
 async function track_progress(store, location) {
   if (!isElectron()) {
     return;
@@ -110,14 +109,20 @@ async function track_progress(store, location) {
   dispatch(plottingStarted());
   try {
     dispatch(resetProgress());
-    const tail = new Tail(location, options);
-    tail.on("line", data => {
+    if (global_tail) {
+      global_tail.unwatch();
+    }
+    global_tail = new Tail(location, options);
+    global_tail.on("line", data => {
       dispatch(addProgress(data));
-      if (data.includes("Summary:")) {
+      if (
+        data.includes("Copied final file") ||
+        data.includes("Moved final file")
+      ) {
         dispatch(refreshPlots());
       }
     });
-    tail.on("error", err => {
+    global_tail.on("error", err => {
       dispatch(addProgress(err));
     });
   } catch (e) {
@@ -150,6 +155,7 @@ export const handle_message = (store, payload) => {
       store.dispatch(get_height_info());
       store.dispatch(get_sync_status());
       store.dispatch(get_connection_info());
+      store.dispatch(isServiceRunning(service_plotter));
     }
   } else if (payload.command === "add_key") {
     if (payload.data.success) {
@@ -162,6 +168,7 @@ export const handle_message = (store, payload) => {
       let start_harvester = startService(service_harvester);
       store.dispatch(start_farmer);
       store.dispatch(start_harvester);
+      store.dispatch(isServiceRunning(service_plotter));
     }
   } else if (payload.command === "delete_key") {
     if (payload.data.success) {
@@ -172,14 +179,18 @@ export const handle_message = (store, payload) => {
       store.dispatch(format_message("get_public_keys", {}));
     }
   } else if (payload.command === "get_public_keys") {
-    if (
-      payload.data.success &&
-      payload.data.public_key_fingerprints.length > 0
-    ) {
-      store.dispatch(changeEntranceMenu(presentSelectKeys));
-    } else {
-      store.dispatch(changeEntranceMenu(presentNewWallet));
-    }
+    store.dispatch(changeEntranceMenu(presentSelectKeys));
+  } else if (payload.command === "get_private_key") {
+    const text =
+      "Extended hex key: " +
+      payload.data.private_key.esk +
+      "\n" +
+      (payload.data.private_key.seed
+        ? "seed: " + payload.data.private_key.seed
+        : "No 24 word seed, since this key is imported.");
+    store.dispatch(
+      openDialog("Private key " + payload.data.private_key.fingerprint, text)
+    );
   } else if (payload.command === "delete_plot") {
     store.dispatch(refreshPlots());
   } else if (payload.command === "get_wallets") {
@@ -242,6 +253,10 @@ export const handle_message = (store, payload) => {
     if (payload.data.success) {
       store.dispatch(offerParsed(payload.data.discrepancies));
     }
+  } else if (payload.command === "start_plotting") {
+    if (payload.data.success) {
+      track_progress(store, payload.data.out_file);
+    }
   } else if (payload.command === "start_service") {
     const service = payload.data.service;
     if (payload.data.success) {
@@ -285,7 +300,7 @@ export const handle_message = (store, payload) => {
   } else if (payload.command === "stop_service") {
     if (payload.data.success) {
       if (payload.data.service_name === service_plotter) {
-        store.dispatch(resetProgress());
+        store.dispatch(plottingStopped());
       }
     }
   }

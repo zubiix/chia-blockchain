@@ -5,13 +5,23 @@ import signal
 import time
 import traceback
 from pathlib import Path
+<<<<<<< HEAD
 from blspy import ExtendedPrivateKey, PublicKey
+=======
+from blspy import ExtendedPrivateKey, PrivateKey
+from secrets import token_bytes
+>>>>>>> dev
 
 from typing import List, Optional, Tuple
 
 import aiohttp
 from src.util.byte_types import hexstr_to_bytes
-from src.util.keychain import Keychain, seed_from_mnemonic, generate_mnemonic
+from src.util.keychain import (
+    Keychain,
+    seed_from_mnemonic,
+    bytes_to_mnemonic,
+    generate_mnemonic,
+)
 from src.util.path import path_from_root
 from src.util.ws_message import create_payload, format_response, pong
 from src.wallet.trade_manager import TradeManager
@@ -107,7 +117,6 @@ class WebSocketServer:
                 local_test=True,
             )
         else:
-            log.info("Not Testing")
             self.wallet_node = await WalletNode.create(
                 self.config, private_key, self.root_path
             )
@@ -698,14 +707,21 @@ class WebSocketServer:
         response = {"success": True, "public_key_fingerprints": fingerprints}
         return response
 
-    async def logged_in(self):
-        private_key = self.keychain.get_wallet_key()
-        if private_key is None:
-            response = {"logged_in": False}
-        else:
-            response = {"logged_in": True}
-
-        return response
+    async def get_private_key(self, request):
+        fingerprint = request["fingerprint"]
+        for esk, seed in self.keychain.get_all_private_keys():
+            if esk.get_public_key().get_fingerprint() == fingerprint:
+                s = bytes_to_mnemonic(seed) if seed is not None else None
+                self.log.warning(f"{s}, {esk}")
+                return {
+                    "success": True,
+                    "private_key": {
+                        "fingerprint": fingerprint,
+                        "esk": bytes(esk).hex(),
+                        "seed": s,
+                    },
+                }
+        return {"success": False, "private_key": {"fingerprint": fingerprint}}
 
     async def log_in(self, request):
         await self.stop_wallet()
@@ -717,17 +733,41 @@ class WebSocketServer:
         return response
 
     async def add_key(self, request):
+        if "mnemonic" in request:
+            # Adding a key from 24 word mnemonic
+            mnemonic = request["mnemonic"]
+            seed = seed_from_mnemonic(mnemonic)
+            self.keychain.add_private_key_seed(seed)
+            esk = ExtendedPrivateKey.from_seed(seed)
+        elif "hexkey" in request:
+            # Adding a key from hex private key string. Two cases: extended private key (HD)
+            # which is 77 bytes, and int private key which is 32 bytes.
+            if len(request["hexkey"]) != 154 and len(request["hexkey"]) != 64:
+                return {"success": False}
+            if len(request["hexkey"]) == 64:
+                sk = PrivateKey.from_bytes(bytes.fromhex(request["hexkey"]))
+                self.keychain.add_private_key_not_extended(sk)
+                key_bytes = bytes(sk)
+                new_extended_bytes = bytearray(
+                    bytes(ExtendedPrivateKey.from_seed(token_bytes(32)))
+                )
+                final_extended_bytes = bytes(
+                    new_extended_bytes[: -len(key_bytes)] + key_bytes
+                )
+                esk = ExtendedPrivateKey.from_bytes(final_extended_bytes)
+            else:
+                esk = ExtendedPrivateKey.from_bytes(bytes.fromhex(request["hexkey"]))
+                self.keychain.add_private_key(esk)
+
+        else:
+            return {"success": False}
+
+        fingerprint = esk.get_public_key().get_fingerprint()
         await self.stop_wallet()
-        mnemonic = request["mnemonic"]
-        self.log.info(f"Mnemonic {mnemonic}")
-        seed = seed_from_mnemonic(mnemonic)
-        self.log.info(f"Seed {seed}")
-        fingerprint = (
-            ExtendedPrivateKey.from_seed(seed).get_public_key().get_fingerprint()
-        )
-        self.keychain.add_private_key_seed(seed)
+        # Makes sure the new key is added to config properly
         check_keys(self.root_path)
 
+        # Starts the wallet with the new key selected
         started = await self.start_wallet(fingerprint)
 
         response = {"success": started}
@@ -736,7 +776,10 @@ class WebSocketServer:
     async def delete_key(self, request):
         await self.stop_wallet()
         fingerprint = request["fingerprint"]
+        self.log.warning(f"Removing one key {fingerprint}")
+        self.log.warning(f"{self.keychain.get_all_public_keys()}")
         self.keychain.delete_key_by_fingerprint(fingerprint)
+        self.log.warning(f"{self.keychain.get_all_public_keys()}")
         response = {"success": True}
         return response
 
@@ -858,8 +901,8 @@ class WebSocketServer:
             return await self.get_wallet_summaries()
         elif command == "get_public_keys":
             return await self.get_public_keys()
-        elif command == "logged_in":
-            return await self.logged_in()
+        elif command == "get_private_key":
+            return await self.get_private_key(data)
         elif command == "generate_mnemonic":
             return await self.generate_mnemonic()
         elif command == "log_in":

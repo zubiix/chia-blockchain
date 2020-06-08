@@ -26,21 +26,24 @@ steps:
       versionSpec: "$(python.version)"
     displayName: "Use Python $(python.version)"
 
+  # Install Apple certificate
+  # Install an Apple certificate required to build on a macOS agent machine
+  - task: InstallAppleCertificate@2
+    inputs:
+      certSecureFile: 'chia-apple-dev-id-app.p12'
+      certPwd: $(CHIA_APPLE_DEV_ID_APP_PASS)
+      keychain: temp
+      deleteCert: true
+
   #  since we're installing miniupnpc & setproctitle below,
   #  only cbor2 will end up in wheels/
   - script: |
       python -m venv venv
       ln -s venv/bin/activate .
       . ./activate
-      echo "which python, pip after activate"
-      which python
-      which pip
       python -m pip install --upgrade pip
-      pip install wheel pep517
+      pip install wheel pep517 setuptools_scm
       node -v
-      npm cache clean -f
-      npm install -g n
-      sudo n stable
       pip install -i https://download.chia.net/simple/ miniupnpc==2.1 setproctitle==1.1.10 cbor2==5.1.0
     displayName: "Install dependencies"
 
@@ -52,7 +55,7 @@ steps:
   - task: NodeTool@0
     inputs:
       versionSpec: '12.x'
-    displayName: "Setup Node 12.xß"
+    displayName: "Setup Node 12.x"
 
   - script: |
       . ./activate
@@ -67,15 +70,12 @@ steps:
       pip install .
     displayName: "Install wheels"
 
-  #  install-timelord.sh in venv
-  - script: |
-      . ./activate
-      echo "which python"
-      which python
-      brew install boost
-      sh install-timelord.sh
-      ./vdf_bench square_asm 400000
-    displayName: "Install timelord"
+#  install-timelord.sh in venv
+#  - script: |
+#      . ./activate
+#      brew install boost
+#      sh install-timelord.sh
+#    displayName: "Install timelord"
 
 #  - script: |
 #      . ./activate
@@ -92,7 +92,9 @@ steps:
       . ./activate
       cd build_scripts
       sh build_macos.sh
+      ls -l final_installer
     displayName: "Build DMG with build_scripts/build_macos.sh"
+    env: { CHIA_INSTALLER_VERSION: "0.1.6" }
 
   - task: PublishPipelineArtifact@1
     inputs:
@@ -102,6 +104,6 @@ steps:
 
   - task: PublishPipelineArtifact@1
     inputs:
-      targetPath: $(System.DefaultWorkingDirectory)/build_scripts/Chia-0.1.6.dmg
+      targetPath: $(System.DefaultWorkingDirectory)/build_scripts/final_installer/
       artifactName: MacOS-DMG
     displayName: "Upload MacOS DMG"

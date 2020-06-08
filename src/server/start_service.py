@@ -3,7 +3,6 @@ import logging
 import logging.config
 import signal
 
-from multiprocessing import freeze_support
 from typing import Any, AsyncGenerator, Callable, List, Optional, Tuple
 
 try:
@@ -127,13 +126,8 @@ class Service:
             return
 
         async def _run():
-            self._rpc_task = None
-
-            if self._rpc_start_callback_port:
-                rpc_f, rpc_port = self._rpc_start_callback_port
-                self._rpc_task = asyncio.ensure_future(
-                    rpc_f(self._api, self.stop, rpc_port)
-                )
+            if self._start_callback:
+                await self._start_callback()
 
             self._introducer_poll_task = None
             if self._periodic_introducer_poll:
@@ -151,8 +145,13 @@ class Service:
                     target_peer_count,
                 )
 
-            if self._start_callback:
-                await self._start_callback()
+            self._rpc_task = None
+            if self._rpc_start_callback_port:
+                rpc_f, rpc_port = self._rpc_start_callback_port
+                self._rpc_task = asyncio.ensure_future(
+                    rpc_f(self._api, self.stop, rpc_port)
+                )
+
             self._reconnect_tasks = [
                 start_reconnect_task(self._server, _, self._log)
                 for _ in self._connect_peers
@@ -211,7 +210,6 @@ async def async_run_service(*args, **kwargs):
 
 
 def run_service(*args, **kwargs):
-    freeze_support()
     if uvloop is not None:
         uvloop.install()
     # TODO: use asyncio.run instead

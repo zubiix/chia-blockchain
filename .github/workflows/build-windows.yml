@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   build:
-    name: Python 3.7 on windows-latest
+    name: Windows installer on 3.7
     runs-on: [windows-latest]
 
     steps:
@@ -13,25 +13,27 @@ jobs:
           fetch-depth: 0
           # we need fetch-depth 0 so setuptools_scm can resolve tags
 
+      - name: Decode code signing cert into an encrypted file
+        uses: kitek/decode-base64-into-file-action@1.0
+        with:
+          encoded-value: ${{ secrets.WIN_CODE_SIGN_CERT }}
+          destination-file: .\electron-react\win_code_sign_cert.p12
+
       - uses: actions/setup-python@v1
         name: Install Python 3.7
         with:
           python-version: "3.7"
 
-      - name: Add msbuild to PATH
-        uses: microsoft/setup-msbuild@v1.0.0
-
       - name: Build Windows installer with build_scripts\build_windows.ps1
-        working-directory: ${{ github.workspace }}\build_scripts
         run: |
-          git config --global core.longpaths true
-          ./build_windows.ps1
+          $env:path="C:\Program` Files` (x86)\Microsoft` Visual` Studio\2019\Enterprise\SDK\ScopeCppSDK\vc15\VC\bin\;$env:path"
+          .\build_scripts\build_windows.ps1
 
       - name: Upload Windows exe's to artifacts
         uses: actions/upload-artifact@v1
         with:
           name: Windows-Exe
-          path: ${{ github.workspace }}\electron-react\Chia-0.1.6-win32-x64
+          path: ${{ github.workspace }}\electron-react\Chia-win32-x64\
 
       - name: Upload Installer to artifacts
         uses: actions/upload-artifact@v1
