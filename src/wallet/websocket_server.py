@@ -5,12 +5,8 @@ import signal
 import time
 import traceback
 from pathlib import Path
-<<<<<<< HEAD
-from blspy import ExtendedPrivateKey, PublicKey
-=======
 from blspy import ExtendedPrivateKey, PrivateKey
 from secrets import token_bytes
->>>>>>> dev
 
 from typing import List, Optional, Tuple
 
