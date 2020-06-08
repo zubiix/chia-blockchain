@@ -4,13 +4,15 @@ import logging
 import signal
 import time
 import traceback
-from pathlib import Path
-from blspy import ExtendedPrivateKey, PrivateKey
-from secrets import token_bytes
-
-from typing import List, Optional, Tuple
-
 import aiohttp
+try:
+    import uvloop
+except ImportError:
+    uvloop = None
+from pathlib import Path
+from blspy import ExtendedPrivateKey, PrivateKey, PublicKey
+from secrets import token_bytes
+from typing import List, Optional, Tuple
 from src.util.byte_types import hexstr_to_bytes
 from src.util.keychain import (
     Keychain,
@@ -21,12 +23,6 @@ from src.util.keychain import (
 from src.util.path import path_from_root
 from src.util.ws_message import create_payload, format_response, pong
 from src.wallet.trade_manager import TradeManager
-
-try:
-    import uvloop
-except ImportError:
-    uvloop = None
-
 from src.cmds.init import check_keys
 from src.server.outbound_message import NodeType, OutboundMessage, Message, Delivery
 from src.server.server import ChiaServer
