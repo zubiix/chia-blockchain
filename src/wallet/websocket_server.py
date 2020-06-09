@@ -549,12 +549,13 @@ class WebSocketServer:
     async def get_unused_pubkey(self, request):
         wallet_id = int(request["wallet_id"])
         wallet: Wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
-        if wallet.wallet_info.wallet_type != WalletType.STANDARD_WALLET:
-            return {"success": False, "reason": "ERROR: not a standard wallet"}
-        pubkey = bytes(wallet.get_new_pubkey())
+        if wallet.wallet_info.type != WalletType.STANDARD_WALLET:
+            return {"success": False, "reason": "ERROR: not a standard wallet", "wallet_id": wallet_id}
+        pk = await wallet.get_new_pubkey()
+        pubkey = bytes(pk)
         if pubkey is None:
-            return {"success": False, "reason": "Bad pubkey"}
-        return {"success": True, "pubkey": pubkey}
+            return {"success": False, "reason": "Bad pubkey", "wallet_id": wallet_id}
+        return {"success": True, "pubkey": pubkey, "wallet_id": wallet_id}
 
     async def cc_set_name(self, request):
         wallet_id = int(request["wallet_id"])
@@ -874,7 +875,7 @@ class WebSocketServer:
         elif command == "wallet_sign":
             return await self.wallet_sign(data)
         elif command == "get_unused_pubkey":
-            return self.get_unused_pubkey(data)
+            return await self.get_unused_pubkey(data)
         elif command == "cc_set_name":
             return await self.cc_set_name(data)
         elif command == "cc_get_name":

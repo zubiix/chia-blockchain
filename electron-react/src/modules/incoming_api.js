@@ -12,6 +12,7 @@ export const Wallet = (id, name, type, data) => ({
   balance_change: 0,
   transactions: [],
   puzzle_hash: "",
+  ap_pubkey: "",
   colour: ""
 });
 
@@ -195,6 +196,16 @@ export const incomingReducer = (state = { ...initial_state }, action) => {
           state.status["syncing"] = syncing;
           return state;
         }
+      } else if (command === "get_unused_pubkey") {
+        id = data.wallet_id;
+        const ap_pubkey = data.pubkey;
+        wallets = state.wallets;
+        wallet = wallets[parseInt(id)];
+        if (!wallet) {
+          return state;
+        }
+        wallet.ap_pubkey = ap_pubkey;
+        return { ...state };
       } else if (command === "cc_get_colour") {
         id = data.wallet_id;
         const colour = data.colour;

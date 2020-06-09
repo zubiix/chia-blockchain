@@ -139,7 +139,7 @@ export const get_connection_info = () => {
   return action;
 };
 
-export const create_ap_authorizer = wallet_id => {
+export const get_unused_pubkey = wallet_id => {
   var action = walletMessage();
   action.message.command = "get_unused_pubkey";
   action.message.data = {
