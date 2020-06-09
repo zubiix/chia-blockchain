@@ -18,112 +18,22 @@ const redux_tool = dev_config.redux_tool;
 var url = require("url");
 const Tail = require("tail").Tail;
 const os = require("os");
-
+const ChiaRunner = require("./run_chia");
 // Only takes effect if local_test is false. Connects to a local introducer.
-var local_introducer = false;
 
 global.sharedObj = { local_test: local_test };
 
-/*************************************************************
- * py process
- *************************************************************/
+let chia_root = null;
 
-const PY_MAC_DIST_FOLDER = "../../app.asar.unpacked/daemon";
-const PY_WIN_DIST_FOLDER = "../../app.asar.unpacked/daemon";
-const PY_DIST_FILE = "daemon";
-const PY_FOLDER = "../src/daemon";
-const PY_MODULE = "server"; // without .py suffix
+async function startDaemon() {
+  chia_root = await ChiaRunner.get_chia_root();
+  global.sharedObj["chia_root"] = chia_root;
+  await ChiaRunner.run_daemon();
+  console.log("Chia root: " + chia_root);
+}
 
-let pyProc = null;
-
-const guessPackaged = () => {
-  if (process.platform === "win32") {
-    const fullPath = path.join(__dirname, PY_WIN_DIST_FOLDER);
-    packed = require("fs").existsSync(fullPath);
-    console.log(fullPath);
-    console.log(packed);
-    return packed;
-  }
-  const fullPath = path.join(__dirname, PY_MAC_DIST_FOLDER);
-  packed = require("fs").existsSync(fullPath);
-  console.log(fullPath);
-  console.log(packed);
-  return packed;
-};
-
-const getScriptPath = () => {
-  if (!guessPackaged()) {
-    return path.join(PY_FOLDER, PY_MODULE + ".py");
-  }
-  if (process.platform === "win32") {
-    return path.join(__dirname, PY_WIN_DIST_FOLDER, PY_DIST_FILE + ".exe");
-  }
-  return path.join(__dirname, PY_MAC_DIST_FOLDER, PY_DIST_FILE);
-};
-
-const createPyProc = () => {
-  let script = getScriptPath();
-  processOptions = {};
-  //processOptions.detached = true;
-  //processOptions.stdio = "ignore";
-  pyProc = null;
-  if (guessPackaged()) {
-    try {
-      console.log("Running python executable: ");
-      const Process = require("child_process").spawn;
-      pyProc = new Process(script, [], processOptions);
-    } catch {
-      console.log("Running python executable: Error: ");
-      console.log("Script " + script);
-    }
-  } else {
-    console.log("Running python script");
-    console.log("Script " + script);
-
-    const Process = require("child_process").spawn;
-    pyProc = new Process("python", [script], processOptions);
-  }
-  if (pyProc != null) {
-    pyProc.stdout.setEncoding("utf8");
-
-    pyProc.stdout.on("data", function(data) {
-      process.stdout.write(data.toString());
-    });
-
-    pyProc.stderr.setEncoding("utf8");
-    pyProc.stderr.on("data", function(data) {
-      //Here is where the error output goes
-      process.stdout.write("stderr: " + data.toString());
-    });
-
-    pyProc.on("close", function(code) {
-      //Here you can get the exit code of the script
-      console.log("closing code: " + code);
-    });
-
-    console.log("child process success");
-  }
-  //pyProc.unref();
-};
-
-const exitPyProc = () => {
-  // Should be a setting
-  if (pyProc != null) {
-    if (process.platform === "win32") {
-      process.stdout.write("Killing daemon on windows");
-      var cp = require('child_process');
-      cp.execSync('taskkill /PID ' + pyProc.pid + ' /T /F')
-    } else {
-      process.stdout.write("Killing daemon on other platforms");
-      pyProc.kill();
-      pyProc = null;
-      pyPort = null;
-    }
-  }
-};
-
-app.on("ready", createPyProc);
-app.on("will-quit", exitPyProc);
+app.on("ready", startDaemon);
+app.on("will-quit", ChiaRunner.exit_all);
 
 /*************************************************************
  * window management
@@ -164,7 +74,6 @@ const createWindow = () => {
       protocol: "file:",
       slashes: true
     });
-  console.log(startUrl);
 
   mainWindow.loadURL(startUrl);
 
