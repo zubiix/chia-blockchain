@@ -8,6 +8,8 @@ from src.server.outbound_message import Delivery, Message, NodeType, OutboundMes
 from src.types.sized_bytes import bytes32
 from src.util.api_decorators import api_request
 
+import tracemalloc
+
 log = logging.getLogger(__name__)
 
 
@@ -16,6 +18,8 @@ class Introducer:
         self.vetted: Dict[bytes32, bool] = {}
         self.max_peers_to_send = max_peers_to_send
         self.recent_peer_threshold = recent_peer_threshold
+
+        tracemalloc.start()
 
     def set_global_connections(self, global_connections: PeerConnections):
         self.global_connections: PeerConnections = global_connections
@@ -60,3 +64,8 @@ class Introducer:
         msg = Message("respond_peers", RespondPeers(peers))
         yield OutboundMessage(NodeType.FULL_NODE, msg, Delivery.RESPOND)
         yield OutboundMessage(NodeType.WALLET, msg, Delivery.RESPOND)
+
+        snapshot=tracemalloc.take_snapshot()
+        for i, stat in enumerate(snapshot.statistics('filename')[:5], 1):
+            log.info(f"{i} top_current {str(stat)}")
+
