@@ -90,6 +90,12 @@ class Connection:
 
     def close(self):
         self.writer.close()
+       
+        # We are done with this connection. None out objects to avoid leaks
+        self.reader = None
+        self.writer = None
+        socket = None
+        self.on_connect = None
 
     def __str__(self) -> str:
         if self.peer_server_port is not None:
