@@ -214,10 +214,10 @@ class WebSocketServer:
         wallet_id = int(request["wallet_id"])
         wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
 
-        if wallet.wallet_info.type == WalletType.STANDARD_WALLET:
+        if wallet.wallet_info.type == WalletType.STANDARD_WALLET or wallet.wallet_info.type == WalletType.AUTHORIZED_PAYEE:
             puzzle_hash = (await wallet.get_new_puzzlehash()).hex()
         elif wallet.wallet_info.type == WalletType.COLOURED_COIN:
-            puzzle_hash = await wallet.get_new_inner_hash()
+            puzzle_hash = (await wallet.get_new_inner_hash()).hex()
 
         response = {
             "wallet_id": wallet_id,
