@@ -114,6 +114,7 @@ class CCWallet:
             removals=spend_bundle.removals(),
             wallet_id=self.wallet_state_manager.main_wallet.wallet_info.id,
             sent_to=[],
+            trade_id=None,
         )
         cc_record = TransactionRecord(
             confirmed_at_index=uint32(0),
@@ -129,6 +130,7 @@ class CCWallet:
             removals=spend_bundle.removals(),
             wallet_id=self.wallet_info.id,
             sent_to=[],
+            trade_id=None,
         )
         await self.standard_wallet.push_transaction(regular_record)
         await self.standard_wallet.push_transaction(cc_record)
@@ -475,6 +477,7 @@ class CCWallet:
                 removals=full_spend.removals(),
                 wallet_id=uint32(1),
                 sent_to=[],
+                trade_id=None,
             )
             cc_record = TransactionRecord(
                 confirmed_at_index=uint32(0),
@@ -490,6 +493,7 @@ class CCWallet:
                 removals=full_spend.removals(),
                 wallet_id=self.wallet_info.id,
                 sent_to=[],
+                trade_id=None,
             )
             await self.wallet_state_manager.add_transaction(regular_record)
             await self.wallet_state_manager.add_pending_transaction(cc_record)
@@ -789,6 +793,7 @@ class CCWallet:
             removals=spend_bundle.removals(),
             wallet_id=self.wallet_info.id,
             sent_to=[],
+            trade_id=None,
         )
         await self.wallet_state_manager.add_pending_transaction(tx_record)
 

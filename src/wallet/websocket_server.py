@@ -118,9 +118,7 @@ class WebSocketServer:
         if self.wallet_node is None:
             return False
 
-        self.trade_manager = await TradeManager.create(
-            self.wallet_node.wallet_state_manager
-        )
+        self.trade_manager = self.wallet_node.wallet_state_manager.trade_manager
         self.wallet_node.wallet_state_manager.set_callback(self.state_changed_callback)
 
         net_config = load_config(self.root_path, "config.yaml")
