@@ -27,7 +27,7 @@ class APWallet:
     wallet_state_manager: Any
     log: logging.Logger
     wallet_info: WalletInfo
-    cc_coin_record: WalletCoinRecord
+    ap_coin_record: WalletCoinRecord
     ap_info: APInfo
     standard_wallet: Wallet
     base_puzzle_program: Optional[bytes]
@@ -54,7 +54,7 @@ class APWallet:
         self.ap_info = APInfo(bytes(authoriser_pubkey), None, [], None)
         info_as_string = bytes(self.ap_info).hex()
         self.wallet_info = await wallet_state_manager.user_store.create_wallet(
-            "AP Wallet", WalletType.COLOURED_COIN, info_as_string
+            "AP Wallet", WalletType.AUTHORIZED_PAYEE, info_as_string
         )
         if self.wallet_info is None:
             raise
@@ -63,7 +63,7 @@ class APWallet:
             self.wallet_info.id
         )
         pubkey = devrec.pubkey
-        self.ap_info = APInfo(bytes(authoriser_pubkey), bytes(pubkey), [], None)
+        await self.save_info(APInfo(bytes(authoriser_pubkey), bytes(pubkey), [], None))
         return self
 
     @staticmethod
@@ -83,7 +83,7 @@ class APWallet:
         self.wallet_state_manager = wallet_state_manager
         self.wallet_info = wallet_info
         self.standard_wallet = wallet
-        self.cc_info = APInfo.from_bytes(hexstr_to_bytes(self.wallet_info.data))
+        self.ap_info = APInfo.from_bytes(hexstr_to_bytes(self.wallet_info.data))
         self.base_puzzle_program = None
         self.base_inner_puzzle_hash = None
         return self
