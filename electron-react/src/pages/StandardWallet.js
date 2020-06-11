@@ -593,7 +593,7 @@ const AddressCard = props => {
         <Grid item xs={12}>
           <div className={classes.cardTitle}>
             <Typography component="h6" variant="h6">
-              Receive Addresss
+              Receive Address
             </Typography>
           </div>
         </Grid>
@@ -649,6 +649,7 @@ const StandardWallet = props => {
   const classes = useStyles();
   var id = props.wallet_id;
   const wallets = useSelector(state => state.wallet_state.wallets);
+  console.log(wallets)
 
   return wallets.length > props.wallet_id ? (
     <Grid className={classes.walletContainer} item xs={12}>
