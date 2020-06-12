@@ -83,6 +83,7 @@ class WalletStateManager:
     private_key: ExtendedPrivateKey
 
     trade_manager: TradeManager
+    generate_count: int
 
     @staticmethod
     async def create(
@@ -91,6 +92,7 @@ class WalletStateManager:
         db_path: Path,
         constants: Dict,
         name: str = None,
+        testing: bool = False,
     ):
         self = WalletStateManager()
         self.config = config
@@ -119,7 +121,10 @@ class WalletStateManager:
         self.pending_tx_callback = None
         self.difficulty_resets_prev = {}
         self.db_path = db_path
-
+        if testing is True:
+            self.generate_count = 10
+        else:
+            self.generate_count = 100
         main_wallet_info = await self.user_store.get_wallet_by_id(1)
         assert main_wallet_info is not None
 
@@ -143,7 +148,7 @@ class WalletStateManager:
 
         async with self.puzzle_store.lock:
             index = await self.puzzle_store.get_last_derivation_path()
-            if index is None or index < 100:
+            if index is None or index < self.generate_count:
                 await self.create_more_puzzle_hashes(from_zero=True)
 
         if len(self.block_records) > 0:
@@ -220,7 +225,7 @@ class WalletStateManager:
                 # This handles the case where the database is empty
                 unused = uint32(0)
 
-        to_generate = 100
+        to_generate = self.generate_count
 
         for wallet_id in targets:
             target_wallet = self.wallets[wallet_id]
