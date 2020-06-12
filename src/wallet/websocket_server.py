@@ -5,6 +5,7 @@ import signal
 import time
 import traceback
 import aiohttp
+
 try:
     import uvloop
 except ImportError:
@@ -214,7 +215,10 @@ class WebSocketServer:
         wallet_id = int(request["wallet_id"])
         wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
 
-        if wallet.wallet_info.type == WalletType.STANDARD_WALLET or wallet.wallet_info.type == WalletType.AUTHORIZED_PAYEE:
+        if (
+            wallet.wallet_info.type == WalletType.STANDARD_WALLET
+            or wallet.wallet_info.type == WalletType.AUTHORIZED_PAYEE
+        ):
             puzzle_hash = (await wallet.get_new_puzzlehash()).hex()
         elif wallet.wallet_info.type == WalletType.COLOURED_COIN:
             puzzle_hash = (await wallet.get_new_inner_hash()).hex()
@@ -373,7 +377,9 @@ class WebSocketServer:
                 return response
         elif request["wallet_type"] == "ap_wallet":
             pubkey = PublicKey.from_bytes(bytes(request["pubkey"]))
-            ap_wallet = await APWallet.create_new_wallet(wallet_state_manager, main_wallet, pubkey)
+            ap_wallet = await APWallet.create_new_wallet(
+                wallet_state_manager, main_wallet, pubkey
+            )
             response = {"success": True, "type": ap_wallet.wallet_info.type.name}
             return response
 
@@ -450,7 +456,9 @@ class WebSocketServer:
         wallet_id = int(request["wallet_id"])
         wallet: APWallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
 
-        success = await wallet.add_contact(request["name"], request["puzhash"], request["new_signature"])
+        success = await wallet.add_contact(
+            request["name"], request["puzhash"], request["new_signature"]
+        )
         response = {"success": success}
         return response
 
@@ -470,7 +478,9 @@ class WebSocketServer:
         if wallet.wallet_info.wallet_type != WalletType.AUTHORIZED_PAYEE:
             return {"success": False, "reason": "ERROR: not an AP wallet"}
         try:
-            tx = await wallet.ap_generate_signed_transaction(request["amount"], request["puzhash"])
+            tx = await wallet.ap_generate_signed_transaction(
+                request["amount"], request["puzhash"]
+            )
         except BaseException as e:
             data = {
                 "status": "FAILED",
@@ -521,15 +531,21 @@ class WebSocketServer:
 
         return data
 
-    async def add_ap_info_to_wallet(self, request):  # This for the AP features in the standard wallet
+    async def add_ap_info_to_wallet(
+        self, request
+    ):  # This for the AP features in the standard wallet
         wallet_id = int(request["wallet_id"])
         wallet: Wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
         if wallet.wallet_info.wallet_type != WalletType.STANDARD_WALLET:
             return {"success": False, "reason": "ERROR: not a standard wallet"}
-        success = await wallet.add_new_ap_info(request["name"], request["a_pubkey"], request["b_pubkey"])
+        success = await wallet.add_new_ap_info(
+            request["name"], request["a_pubkey"], request["b_pubkey"]
+        )
         return {"success": success}
 
-    async def get_ap_info_from_wallet(self, request):  # This for the AP features in the standard wallet
+    async def get_ap_info_from_wallet(
+        self, request
+    ):  # This for the AP features in the standard wallet
         wallet_id = int(request["wallet_id"])
         wallet: Wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
         if wallet.wallet_info.wallet_type != WalletType.STANDARD_WALLET:
@@ -541,7 +557,9 @@ class WebSocketServer:
         wallet_id = int(request["wallet_id"])
         wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
         if wallet.wallet_info.wallet_type != WalletType.STANDARD_WALLET:
-            sig = await wallet.standard_wallet.sign(bytes(request["message"]), bytes(request["pubkey"]))
+            sig = await wallet.standard_wallet.sign(
+                bytes(request["message"]), bytes(request["pubkey"])
+            )
         else:
             sig = await wallet.sign(bytes(request["message"]), bytes(request["pubkey"]))
         return {"success": True, "signature": sig}
@@ -550,7 +568,11 @@ class WebSocketServer:
         wallet_id = int(request["wallet_id"])
         wallet: Wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
         if wallet.wallet_info.type != WalletType.STANDARD_WALLET:
-            return {"success": False, "reason": "ERROR: not a standard wallet", "wallet_id": wallet_id}
+            return {
+                "success": False,
+                "reason": "ERROR: not a standard wallet",
+                "wallet_id": wallet_id,
+            }
         pk = await wallet.get_new_pubkey()
         pubkey = bytes(pk)
         if pubkey is None:

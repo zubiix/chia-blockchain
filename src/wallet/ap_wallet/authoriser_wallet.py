@@ -1,27 +1,13 @@
-import time
 import logging
-import clvm
-from typing import Dict, Optional, List, Any, Set
-from src.types.BLSSignature import BLSSignature
-from src.types.coin import Coin
-from src.types.coin_solution import CoinSolution
 from src.types.program import Program
-from src.types.spend_bundle import SpendBundle
-from src.types.sized_bytes import bytes32
-from src.util.ints import uint64, uint32
 from src.wallet.BLSPrivateKey import BLSPrivateKey
-from src.wallet.ap_wallet.ap_info import APInfo
-from src.wallet.transaction_record import TransactionRecord
 from src.wallet.util.wallet_types import WalletType
 from src.wallet.wallet import Wallet
-from src.wallet.wallet_coin_record import WalletCoinRecord
 from src.wallet.wallet_info import WalletInfo
-from src.wallet.derivation_record import DerivationRecord
 from src.util.byte_types import hexstr_to_bytes
-from src.wallet.ap_wallet import ap_puzzles
-from src.wallet.ap_wallet import AuthoriserInfo
+from src.wallet.ap_wallet.authoriser_info import AuthoriserInfo
 from blspy import PublicKey
-from src.util.hash import std_hash
+from typing import Any
 
 
 class AuthoriserWallet:
@@ -35,7 +21,7 @@ class AuthoriserWallet:
     async def create_wallet_for_ap(
         wallet_state_manager: Any,
         wallet: Wallet,
-        authoriser_pubkey: PublicKey,
+        authoriser_pubkey: PublicKey = None,
         name: str = None,
     ):
 
@@ -49,8 +35,8 @@ class AuthoriserWallet:
             self.log = logging.getLogger(__name__)
 
         self.wallet_state_manager = wallet_state_manager
-        self.authoriser_info = AuthoriserInfo(None)
-        info_as_string = bytes(self.auth_info).hex()
+        self.authoriser_info = AuthoriserInfo(None, authoriser_pubkey, None)
+        info_as_string = bytes(self.authoriser_info).hex()
         self.wallet_info = await wallet_state_manager.user_store.create_wallet(
             "Authoriser Wallet", WalletType.AUTHORIZER, info_as_string
         )
@@ -76,7 +62,42 @@ class AuthoriserWallet:
         self.wallet_state_manager = wallet_state_manager
         self.wallet_info = wallet_info
         self.standard_wallet = wallet
-        self.cc_info = APInfo.from_bytes(hexstr_to_bytes(self.wallet_info.data))
+        self.authoriser_info = AuthoriserInfo.from_bytes(
+            hexstr_to_bytes(self.wallet_info.data)
+        )
         self.base_puzzle_program = None
         self.base_inner_puzzle_hash = None
         return self
+
+    async def set_ap_info(self, name, my_pubkey, b_pubkey):
+        new_extra_data = AuthoriserInfo(name, bytes(my_pubkey), bytes(b_pubkey))
+        await self.save_info(new_extra_data)
+        return True
+
+    def get_ap_info(self):
+        return self.authoriser_info
+
+    async def sign(self, value: bytes, pubkey: bytes):
+        publickey = PublicKey.from_bytes(bytes(pubkey))
+        index = await self.wallet_state_manager.puzzle_store.index_for_pubkey(publickey)
+        private = self.wallet_state_manager.private_key.private_child(
+            index
+        ).get_private_key()
+        pk = BLSPrivateKey(private)
+
+        sig = pk.sign(value)
+        assert sig.validate([sig.PkMessagePair(publickey, value)])
+        return sig
+
+    def puzzle_for_pk(self, pubkey: bytes) -> Program:
+        return self.standard_wallet.puzzle_for_pk(pubkey)
+
+    async def save_info(self, auth_info: AuthoriserInfo):
+        self.authoriser_info = auth_info
+        current_info = self.wallet_info
+        data_str = bytes(auth_info).hex()
+        wallet_info = WalletInfo(
+            current_info.id, current_info.name, current_info.type, data_str
+        )
+        self.wallet_info = wallet_info
+        await self.wallet_state_manager.user_store.update_wallet(wallet_info)
