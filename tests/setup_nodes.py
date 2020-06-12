@@ -172,7 +172,7 @@ async def setup_wallet_node(
     if db_path.exists():
         db_path.unlink()
     config["database_path"] = str(db_path)
-
+    config["is_pytest"] = True
     net_config = load_config(root_path, "config.yaml")
     ping_interval = net_config.get("ping_interval")
     network_id = net_config.get("network_id")

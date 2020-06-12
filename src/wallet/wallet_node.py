@@ -106,9 +106,12 @@ class WalletNode:
             self.root_path, f"{config['database_path']}-{db_path_key_suffix}"
         )
         mkdir(path.parent)
-
+        py_test = False
+        if "is_pytest" in config:
+            py_test = config["is_pytest"]
+            py_test = config["is_pytest"]
         self.wallet_state_manager = await WalletStateManager.create(
-            private_key, config, path, self.constants
+            private_key, config, path, self.constants, testing=py_test
         )
         self.wallet_state_manager.set_pending_callback(self._pending_tx_handler)
 
