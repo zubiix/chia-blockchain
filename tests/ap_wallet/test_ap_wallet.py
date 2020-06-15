@@ -148,7 +148,7 @@ class TestWalletSimulator:
         await self.time_out_assert(15, ap_wallet.get_unconfirmed_balance, 80)
         await self.time_out_assert(15, wallet2.get_confirmed_balance, 20)
         await self.time_out_assert(15, wallet2.get_unconfirmed_balance, 20)
-    """
+
     @pytest.mark.asyncio
     async def test_siphon_value_from_spend(self, two_wallet_nodes):
         num_blocks = 10
@@ -439,4 +439,3 @@ class TestWalletSimulator:
 
         await self.time_out_assert(15, ap_wallet.get_confirmed_balance, 100)
         await self.time_out_assert(15, ap_wallet.get_unconfirmed_balance, 100)
-    """
