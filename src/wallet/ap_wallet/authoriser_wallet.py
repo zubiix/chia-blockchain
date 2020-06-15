@@ -1,5 +1,6 @@
 import logging
-import binutils
+from clvm_tools import binutils
+from src.types.sized_bytes import bytes48
 from src.types.program import Program
 from src.wallet.BLSPrivateKey import BLSPrivateKey
 from src.wallet.util.wallet_types import WalletType
