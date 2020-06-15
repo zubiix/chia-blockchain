@@ -22,9 +22,7 @@ class AuthoriserWallet:
 
     @staticmethod
     async def create_wallet_for_ap(
-        wallet_state_manager: Any,
-        wallet: Wallet,
-        name: str = None,
+        wallet_state_manager: Any, wallet: Wallet, name: str = None,
     ):
 
         self = AuthoriserWallet()
@@ -87,8 +85,14 @@ class AuthoriserWallet:
     def get_ap_info(self):
         contacts = {}
         for auth in self.authoriser_info.authorisations:
-            puzzle = ap_puzzles.ap_make_puzzle(bytes(auth[1]), bytes(auth[2])).get_tree_hash()
-            contacts[auth[0]] = {"my_pubkey": auth[1], "their_pubkey": auth[2], "puzhash": puzzle}
+            puzzle = ap_puzzles.ap_make_puzzle(
+                bytes(auth[1]), bytes(auth[2])
+            ).get_tree_hash()
+            contacts[auth[0]] = {
+                "my_pubkey": auth[1],
+                "their_pubkey": auth[2],
+                "puzhash": puzzle,
+            }
         return contacts
 
     async def get_new_pubkey(self) -> bytes48:
@@ -111,7 +115,9 @@ class AuthoriserWallet:
         return sig
 
     def puzzle_for_pk(self, pubkey: bytes) -> Program:
-        return Program.to(binutils.assemble(f"(q ({self.wallet_info.id} 0x{pubkey.hex()}))"))
+        return Program.to(
+            binutils.assemble(f"(q ({self.wallet_info.id} 0x{pubkey.hex()}))")
+        )
 
     async def save_info(self, auth_info: AuthoriserInfo):
         self.authoriser_info = auth_info

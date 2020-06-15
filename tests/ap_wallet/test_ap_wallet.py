@@ -12,6 +12,7 @@ from src.wallet.ap_wallet.ap_wallet import APWallet
 from src.wallet.ap_wallet.authoriser_wallet import AuthoriserWallet
 from src.wallet.ap_wallet import ap_puzzles
 from src.types.BLSSignature import BLSSignature
+from src.types.coin_solution import CoinSolution
 from blspy import PublicKey
 
 

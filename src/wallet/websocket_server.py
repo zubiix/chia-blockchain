@@ -387,7 +387,10 @@ class WebSocketServer:
             wallets = await wallet_state_manager.get_all_wallets()
             for w in wallets:
                 if w.wallet_info.type == WalletType.AUTHORISER:
-                    return {"success": False, "reason": "ERROR: authoriser wallet already exists"}
+                    return {
+                        "success": False,
+                        "reason": "ERROR: authoriser wallet already exists",
+                    }
             auth_wallet = await AuthoriserWallet.create_wallet_for_ap(
                 wallet_state_manager, main_wallet
             )
@@ -543,11 +546,11 @@ class WebSocketServer:
         return data
 
     # AUTH WALLET REQUESTS
-    async def add_ap_info_to_wallet(
-        self, request
-    ):
+    async def add_ap_info_to_wallet(self, request):
         wallet_id = int(request["wallet_id"])
-        wallet: AuthoriserWallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
+        wallet: AuthoriserWallet = self.wallet_node.wallet_state_manager.wallets[
+            wallet_id
+        ]
         if wallet.wallet_info.wallet_type != WalletType.AUTHORISER:
             return {"success": False, "reason": "ERROR: not an auth wallet"}
         success = await wallet.add_ap_info(
@@ -555,9 +558,7 @@ class WebSocketServer:
         )
         return {"success": success}
 
-    async def get_ap_info_from_wallet(
-        self, request
-    ):
+    async def get_ap_info_from_wallet(self, request):
         wallet_id = int(request["wallet_id"])
         wallet: Wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
         if wallet.wallet_info.wallet_type != WalletType.AUTHORISER:
@@ -579,7 +580,10 @@ class WebSocketServer:
     async def get_unused_pubkey(self, request):
         wallet_id = int(request["wallet_id"])
         wallet: Wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
-        if wallet.wallet_info.type != WalletType.STANDARD_WALLET or wallet.wallet_info.type != WalletType.AUTHORISER:
+        if (
+            wallet.wallet_info.type != WalletType.STANDARD_WALLET
+            or wallet.wallet_info.type != WalletType.AUTHORISER
+        ):
             return {
                 "success": False,
                 "reason": "ERROR: wallet must be standard or authoriser type",
