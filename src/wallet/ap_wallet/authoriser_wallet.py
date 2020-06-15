@@ -70,7 +70,11 @@ class AuthoriserWallet:
         self.base_inner_puzzle_hash = None
         return self
 
-    async def add_ap_info(self, name, my_pubkey, b_pubkey):
+    async def add_ap_info(self, name, my_pubkey=None, b_pubkey=None):
+        if b_pubkey is None:
+            return False
+        if my_pubkey is None:
+            my_pubkey = await self.get_new_pubkey()
         new_extra_data = (name, bytes(my_pubkey), bytes(b_pubkey))
         current_data = self.authoriser_info.authorisations
         current_data.append(new_extra_data)
