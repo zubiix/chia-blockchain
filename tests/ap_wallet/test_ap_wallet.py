@@ -95,7 +95,7 @@ class TestWalletSimulator:
         ap_pubkey_b = ap_wallet.ap_info.my_pubkey
 
         auth_wallet: AuthoriserWallet = await AuthoriserWallet.create_wallet_for_ap(
-            wallet_node.wallet_state_manager, wallet, ap_pubkey_a
+            wallet_node.wallet_state_manager, wallet
         )
 
         await auth_wallet.set_ap_info("test_contact", ap_pubkey_a, ap_pubkey_b)
@@ -147,7 +147,6 @@ class TestWalletSimulator:
         await self.time_out_assert(15, ap_wallet.get_unconfirmed_balance, 80)
         await self.time_out_assert(15, wallet2.get_confirmed_balance, 20)
         await self.time_out_assert(15, wallet2.get_unconfirmed_balance, 20)
-
     """
     @pytest.mark.asyncio
     async def test_siphon_value_from_spend(self, two_wallet_nodes):

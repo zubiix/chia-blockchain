@@ -1,4 +1,5 @@
 import logging
+import binutils
 from src.types.program import Program
 from src.wallet.BLSPrivateKey import BLSPrivateKey
 from src.wallet.util.wallet_types import WalletType
@@ -6,6 +7,7 @@ from src.wallet.wallet import Wallet
 from src.wallet.wallet_info import WalletInfo
 from src.util.byte_types import hexstr_to_bytes
 from src.wallet.ap_wallet.authoriser_info import AuthoriserInfo
+from src.wallet.ap_wallet import ap_puzzles
 from blspy import PublicKey
 from typing import Any
 
@@ -21,7 +23,6 @@ class AuthoriserWallet:
     async def create_wallet_for_ap(
         wallet_state_manager: Any,
         wallet: Wallet,
-        authoriser_pubkey: PublicKey = None,
         name: str = None,
     ):
 
@@ -35,10 +36,10 @@ class AuthoriserWallet:
             self.log = logging.getLogger(__name__)
 
         self.wallet_state_manager = wallet_state_manager
-        self.authoriser_info = AuthoriserInfo(None, authoriser_pubkey, None)
+        self.authoriser_info = AuthoriserInfo(None)
         info_as_string = bytes(self.authoriser_info).hex()
         self.wallet_info = await wallet_state_manager.user_store.create_wallet(
-            "Authoriser Wallet", WalletType.AUTHORIZER, info_as_string
+            "Authoriser Wallet", WalletType.AUTHORISER, info_as_string
         )
         if self.wallet_info is None:
             raise
@@ -69,13 +70,26 @@ class AuthoriserWallet:
         self.base_inner_puzzle_hash = None
         return self
 
-    async def set_ap_info(self, name, my_pubkey, b_pubkey):
-        new_extra_data = AuthoriserInfo(name, bytes(my_pubkey), bytes(b_pubkey))
-        await self.save_info(new_extra_data)
+    async def add_ap_info(self, name, my_pubkey, b_pubkey):
+        new_extra_data = (name, bytes(my_pubkey), bytes(b_pubkey))
+        current_data = self.authoriser_info.authorisations
+        current_data.append(new_extra_data)
+        await self.save_info(AuthoriserInfo(current_data))
         return True
 
     def get_ap_info(self):
-        return self.authoriser_info
+        contacts = {}
+        for auth in self.authoriser_info.authorisations:
+            puzzle = ap_puzzles.ap_make_puzzle(bytes(auth[1]), bytes(auth[2])).get_tree_hash()
+            contacts[auth[0]] = {"my_pubkey": auth[1], "their_pubkey": auth[2], "puzhash": puzzle}
+        return contacts
+
+    async def get_new_pubkey(self) -> bytes48:
+        return (
+            await self.wallet_state_manager.get_unused_derivation_record(
+                self.wallet_info.id
+            )
+        ).pubkey
 
     async def sign(self, value: bytes, pubkey: bytes):
         publickey = PublicKey.from_bytes(bytes(pubkey))
@@ -90,7 +104,7 @@ class AuthoriserWallet:
         return sig
 
     def puzzle_for_pk(self, pubkey: bytes) -> Program:
-        return self.standard_wallet.puzzle_for_pk(pubkey)
+        return binutils.assemble(f"(q (AUTHORISER {self.wallet_info.wallet_id} 0x{pubkey}))")
 
     async def save_info(self, auth_info: AuthoriserInfo):
         self.authoriser_info = auth_info
