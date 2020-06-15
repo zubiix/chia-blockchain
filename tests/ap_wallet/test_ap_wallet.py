@@ -98,13 +98,14 @@ class TestWalletSimulator:
             wallet_node.wallet_state_manager, wallet
         )
 
-        await auth_wallet.set_ap_info("test_contact", ap_pubkey_a, ap_pubkey_b)
-        auth_info = auth_wallet.get_ap_info()
-        assert auth_info.name == "test_contact"
-        assert auth_info.my_pubkey == bytes(ap_pubkey_a)
-        assert auth_info.their_pubkey == bytes(ap_pubkey_b)
-
         ap_puz = ap_puzzles.ap_make_puzzle(ap_pubkey_a, ap_pubkey_b)
+
+        await auth_wallet.add_ap_info("test_contact", ap_pubkey_a, ap_pubkey_b)
+        auth_info = auth_wallet.get_ap_info()
+        assert auth_info["test_contact"]["my_pubkey"] == bytes(ap_pubkey_a)
+        assert auth_info["test_contact"]["their_pubkey"] == bytes(ap_pubkey_b)
+        assert auth_info["test_contact"]["puzhash"] == ap_puz.get_tree_hash()
+
         sig = await auth_wallet.sign(ap_puz.get_tree_hash(), bytes(ap_pubkey_a))
         assert sig is not None
         await ap_wallet.set_sender_values(ap_pubkey_a, sig)

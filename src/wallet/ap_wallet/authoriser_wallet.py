@@ -78,6 +78,8 @@ class AuthoriserWallet:
             my_pubkey = await self.get_new_pubkey()
         new_extra_data = (name, bytes(my_pubkey), bytes(b_pubkey))
         current_data = self.authoriser_info.authorisations
+        if current_data is None:
+            current_data = []
         current_data.append(new_extra_data)
         await self.save_info(AuthoriserInfo(current_data))
         return True
@@ -109,7 +111,7 @@ class AuthoriserWallet:
         return sig
 
     def puzzle_for_pk(self, pubkey: bytes) -> Program:
-        return binutils.assemble(f"(q (AUTHORISER {self.wallet_info.wallet_id} 0x{pubkey}))")
+        return Program.to(binutils.assemble(f"(q ({self.wallet_info.id} 0x{pubkey.hex()}))"))
 
     async def save_info(self, auth_info: AuthoriserInfo):
         self.authoriser_info = auth_info
