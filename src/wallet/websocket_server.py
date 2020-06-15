@@ -384,11 +384,11 @@ class WebSocketServer:
             response = {"success": True, "type": ap_wallet.wallet_info.type.name}
             return response
         elif request["wallet_type"] == "authoriser_wallet":
-            wallets = await wallet_state_manager.create_wallet_for_ap()
+            wallets = await wallet_state_manager.get_all_wallets()
             for w in wallets:
                 if w.wallet_info.type == WalletType.AUTHORISER:
                     return {"success": False, "reason": "ERROR: authoriser wallet already exists"}
-            auth_wallet = await AuthoriserWallet.create_new_wallet(
+            auth_wallet = await AuthoriserWallet.create_wallet_for_ap(
                 wallet_state_manager, main_wallet
             )
             response = {"success": True, "type": auth_wallet.wallet_info.type.name}
