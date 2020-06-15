@@ -378,7 +378,7 @@ class WebSocketServer:
                 return response
         elif request["wallet_type"] == "ap_wallet":
             pubkey = PublicKey.from_bytes(bytes(request["pubkey"]))
-            ap_wallet = await APWallet.create_new_wallet(
+            ap_wallet = await APWallet.create_wallet_for_ap(
                 wallet_state_manager, main_wallet, pubkey
             )
             response = {"success": True, "type": ap_wallet.wallet_info.type.name}
