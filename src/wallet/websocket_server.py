@@ -438,7 +438,10 @@ class WebSocketServer:
         wallet: CCWallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
         puzzle_hash = hexstr_to_bytes(request["innerpuzhash"])
         try:
-            tx = await wallet.cc_spend(request["amount"], puzzle_hash)
+            tx = await wallet.generate_signed_transaction(
+                request["amount"], puzzle_hash
+            )
+            await self.wallet_node.wallet_state_manager.add_pending_transaction(tx)
         except BaseException as e:
             data = {
                 "status": "FAILED",
