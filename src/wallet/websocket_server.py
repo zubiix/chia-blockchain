@@ -36,6 +36,7 @@ from src.wallet.util.wallet_types import WalletType
 from src.wallet.rl_wallet.rl_wallet import RLWallet
 from src.wallet.cc_wallet.cc_wallet import CCWallet
 from src.wallet.ap_wallet.ap_wallet import APWallet
+from src.wallet.ap_wallet import ap_puzzles
 from src.wallet.ap_wallet.authoriser_wallet import AuthoriserWallet
 from src.wallet.wallet import Wallet
 from src.wallet.wallet_info import WalletInfo
@@ -557,7 +558,9 @@ class WebSocketServer:
         success = await wallet.add_ap_info(
             request["name"], request["a_pubkey"], request["b_pubkey"]
         )
-        return {"success": success}
+        ap_puz = ap_puzzles.ap_make_puzzle(bytes(request["a_pubkey"]), bytes(request["b_pubkey"]))
+        signature = wallet.sign(ap_puz.get_tree_hash(), bytes(request["a_pubkey"]))
+        return {"success": success, "change_signature": signature}
 
     async def get_ap_info_from_wallet(self, request):
         wallet_id = int(request["wallet_id"])
