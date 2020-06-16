@@ -394,7 +394,8 @@ class WebSocketServer:
             auth_wallet = await AuthoriserWallet.create_wallet_for_ap(
                 wallet_state_manager, main_wallet
             )
-            response = {"success": True, "type": auth_wallet.wallet_info.type.name}
+            new_pubkey = await auth_wallet.get_new_pubkey()
+            response = {"success": True, "type": auth_wallet.wallet_info.type.name, "new_pubkey": new_pubkey}
             return response
 
         response = {"success": False}
@@ -579,7 +580,7 @@ class WebSocketServer:
 
     async def get_unused_pubkey(self, request):
         wallet_id = int(request["wallet_id"])
-        wallet: Wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
+        wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
         if (
             wallet.wallet_info.type != WalletType.STANDARD_WALLET
             or wallet.wallet_info.type != WalletType.AUTHORISER

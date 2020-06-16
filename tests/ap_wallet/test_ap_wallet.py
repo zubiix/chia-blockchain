@@ -89,15 +89,15 @@ class TestWalletSimulator:
         await self.time_out_assert(15, wallet.get_confirmed_balance, funds)
 
         # Get pubkeys for creating the puzzle
-        ap_pubkey_a = await wallet.get_new_pubkey()
+        auth_wallet: AuthoriserWallet = await AuthoriserWallet.create_wallet_for_ap(
+            wallet_node.wallet_state_manager, wallet
+        )
+
+        ap_pubkey_a = await auth_wallet.get_new_pubkey()
         ap_wallet: APWallet = await APWallet.create_wallet_for_ap(
             wallet_node_2.wallet_state_manager, wallet2, ap_pubkey_a
         )
         ap_pubkey_b = ap_wallet.ap_info.my_pubkey
-
-        auth_wallet: AuthoriserWallet = await AuthoriserWallet.create_wallet_for_ap(
-            wallet_node.wallet_state_manager, wallet
-        )
 
         ap_puz = ap_puzzles.ap_make_puzzle(ap_pubkey_a, ap_pubkey_b)
 
