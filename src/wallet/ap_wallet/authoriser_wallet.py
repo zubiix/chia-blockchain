@@ -104,7 +104,7 @@ class AuthoriserWallet:
         ).pubkey
 
     async def sign(self, value: bytes, pubkey: bytes):
-        publickey = PublicKey.from_bytes(pubkey)
+        publickey = PublicKey.from_bytes(bytes(pubkey))
         index = await self.wallet_state_manager.puzzle_store.index_for_pubkey(publickey)
         private = self.wallet_state_manager.private_key.private_child(
             index
