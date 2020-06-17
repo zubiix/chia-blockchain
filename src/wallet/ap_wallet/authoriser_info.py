@@ -8,5 +8,5 @@ from src.util.streamable import streamable, Streamable
 @streamable
 class AuthoriserInfo(Streamable):
     authorisations: Optional[
-        List[Tuple[str, bytes48, bytes48]]
-    ]  # Optional list of (name, my_pubkey, their pubkey)
+        List[Tuple[str, bytes48, bytes48, List[Tuple[bytes, bytes]]]]
+    ]  # Optional list of (name, my_pubkey, their pubkey [(message, sig)])

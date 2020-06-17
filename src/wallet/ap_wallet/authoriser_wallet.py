@@ -69,12 +69,12 @@ class AuthoriserWallet:
         self.base_inner_puzzle_hash = None
         return self
 
-    async def add_ap_info(self, name, my_pubkey=None, b_pubkey=None):
-        if b_pubkey is None:
-            return False
-        if my_pubkey is None:
-            my_pubkey = await self.get_new_pubkey()
-        new_extra_data = (name, bytes(my_pubkey), bytes(b_pubkey))
+    async def add_ap_info(self, name, my_pubkey, b_pubkey):
+        puzhash = ap_puzzles.ap_make_puzzle(
+            bytes(my_pubkey), bytes(b_pubkey)
+        ).get_tree_hash()
+        sig = await self.sign(puzhash, my_pubkey)
+        new_extra_data = (name, bytes(my_pubkey), bytes(b_pubkey), [(bytes(puzhash), bytes(sig))])
         current_data = self.authoriser_info.authorisations
         if current_data is None:
             current_data = []
@@ -92,6 +92,7 @@ class AuthoriserWallet:
                 "my_pubkey": auth[1],
                 "their_pubkey": auth[2],
                 "puzhash": puzzle,
+                "history": auth[3]
             }
         return contacts
 
@@ -103,7 +104,7 @@ class AuthoriserWallet:
         ).pubkey
 
     async def sign(self, value: bytes, pubkey: bytes):
-        publickey = PublicKey.from_bytes(bytes(pubkey))
+        publickey = PublicKey.from_bytes(pubkey)
         index = await self.wallet_state_manager.puzzle_store.index_for_pubkey(publickey)
         private = self.wallet_state_manager.private_key.private_child(
             index
@@ -112,8 +113,12 @@ class AuthoriserWallet:
 
         sig = pk.sign(value)
         assert sig.validate([sig.PkMessagePair(publickey, value)])
+        for auth in self.authoriser_info.authorisations:
+            if auth[1] == pubkey:
+                auth[3].append((value, sig))
         return sig
 
+    # This should not be called, it is just for wallet_state_manager
     def puzzle_for_pk(self, pubkey: bytes) -> Program:
         return Program.to(
             binutils.assemble(f"(q ({self.wallet_info.id} 0x{pubkey.hex()}))")

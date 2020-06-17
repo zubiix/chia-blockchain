@@ -396,7 +396,11 @@ class WebSocketServer:
                 wallet_state_manager, main_wallet
             )
             new_pubkey = await auth_wallet.get_new_pubkey()
-            response = {"success": True, "type": auth_wallet.wallet_info.type.name, "new_pubkey": new_pubkey}
+            response = {
+                "success": True,
+                "type": auth_wallet.wallet_info.type.name,
+                "new_pubkey": new_pubkey,
+            }
             return response
 
         response = {"success": False}
@@ -548,7 +552,7 @@ class WebSocketServer:
         return data
 
     # AUTH WALLET REQUESTS
-    async def add_ap_info_to_wallet(self, request):
+    async def auth_add_ap_info(self, request):
         wallet_id = int(request["wallet_id"])
         wallet: AuthoriserWallet = self.wallet_node.wallet_state_manager.wallets[
             wallet_id
@@ -558,11 +562,13 @@ class WebSocketServer:
         success = await wallet.add_ap_info(
             request["name"], request["a_pubkey"], request["b_pubkey"]
         )
-        ap_puz = ap_puzzles.ap_make_puzzle(bytes(request["a_pubkey"]), bytes(request["b_pubkey"]))
-        signature = wallet.sign(ap_puz.get_tree_hash(), bytes(request["a_pubkey"]))
-        return {"success": success, "change_signature": signature}
+        ap_puz = ap_puzzles.ap_make_puzzle(
+            bytes(request["a_pubkey"]), bytes(request["b_pubkey"])
+        )
+        signature = await wallet.sign(ap_puz.get_tree_hash(), bytes(request["a_pubkey"]))
+        return {"success": success, "puzzlehash": ap_puz.get_tree_hash(), "change_signature": signature}
 
-    async def get_ap_info_from_wallet(self, request):
+    async def auth_get_ap_info(self, request):
         wallet_id = int(request["wallet_id"])
         wallet: Wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
         if wallet.wallet_info.wallet_type != WalletType.AUTHORISER:
@@ -570,7 +576,7 @@ class WebSocketServer:
         authorisations = wallet.get_ap_info()
         return {"success": True, "authorisations": authorisations}
 
-    async def wallet_sign(self, request):
+    async def auth_wallet_sign(self, request):
         wallet_id = int(request["wallet_id"])
         wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
         if wallet.wallet_info.wallet_type != WalletType.AUTHORISER:
@@ -581,7 +587,7 @@ class WebSocketServer:
             sig = await wallet.sign(bytes(request["message"]), bytes(request["pubkey"]))
         return {"success": True, "signature": sig}
 
-    async def get_unused_pubkey(self, request):
+    async def auth_get_unused_pubkey(self, request):
         wallet_id = int(request["wallet_id"])
         wallet = self.wallet_node.wallet_state_manager.wallets[wallet_id]
         if (
@@ -911,12 +917,12 @@ class WebSocketServer:
             return await self.ap_get_my_pubkey(data)
         elif command == "ap_spend":
             return await self.ap_spend(data)
-        elif command == "add_ap_info_to_wallet":
-            return await self.add_ap_info_to_wallet(data)
-        elif command == "get_ap_info_from_wallet":
-            return await self.get_ap_info_from_wallet(data)
-        elif command == "wallet_sign":
-            return await self.wallet_sign(data)
+        elif command == "auth_add_ap_info":
+            return await self.auth_add_ap_info(data)
+        elif command == "auth_get_ap_info":
+            return await self.auth_get_ap_info(data)
+        elif command == "auth_wallet_sign":
+            return await self.auth_wallet_sign(data)
         elif command == "get_unused_pubkey":
             return await self.get_unused_pubkey(data)
         elif command == "cc_set_name":
