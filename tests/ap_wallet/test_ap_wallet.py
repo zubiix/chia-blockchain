@@ -108,10 +108,9 @@ class TestWalletSimulator:
         assert auth_info["test_contact"]["their_pubkey"] == bytes(ap_pubkey_b)
         assert auth_info["test_contact"]["puzhash"] == ap_puzhash
         assert auth_info["test_contact"]["history"][0][0] == ap_puzhash
-        assert BLSSignature.from_bytes(auth_info["test_contact"]["history"][0][1]).validate([BLSSignature.PkMessagePair(ap_pubkey_a, ap_puzhash)])
 
-        sig = await auth_wallet.sign(ap_puz.get_tree_hash(), bytes(ap_pubkey_a))
-        assert sig is not None
+        sig = BLSSignature.from_bytes(auth_info["test_contact"]["history"][0][1])
+        assert sig.validate([BLSSignature.PkMessagePair(ap_pubkey_a, ap_puzhash)])
         await ap_wallet.set_sender_values(ap_pubkey_a, sig)
         assert ap_wallet.ap_info.change_signature is not None
         assert BLSSignature.from_bytes(ap_wallet.ap_info.change_signature).validate(
@@ -137,7 +136,10 @@ class TestWalletSimulator:
         # Generate contact for ap_wallet
 
         ph2 = await wallet2.get_new_puzzlehash()
-        sig = await wallet.sign(ph2, ap_pubkey_a)
+        sig = await auth_wallet.sign(ph2, ap_pubkey_a)
+        auth_info = auth_wallet.get_ap_info()
+        assert auth_info["test_contact"]["history"][1][0] == bytes(ph2)
+        assert auth_info["test_contact"]["history"][1][1] == bytes(sig)
         assert sig.validate([sig.PkMessagePair(ap_pubkey_a, ph2)])
         await ap_wallet.add_contact("wallet2", ph2, sig)
 

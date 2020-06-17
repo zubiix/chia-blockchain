@@ -113,9 +113,13 @@ class AuthoriserWallet:
 
         sig = pk.sign(value)
         assert sig.validate([sig.PkMessagePair(publickey, value)])
-        for auth in self.authoriser_info.authorisations:
-            if auth[1] == pubkey:
+        current_data = self.authoriser_info.authorisations
+        if current_data is None:
+            return sig
+        for auth in current_data:
+            if auth[1] == bytes(pubkey):
                 auth[3].append((value, sig))
+        await self.save_info(AuthoriserInfo(current_data))
         return sig
 
     # This should not be called, it is just for wallet_state_manager
