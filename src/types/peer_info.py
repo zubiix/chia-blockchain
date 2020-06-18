@@ -32,7 +32,7 @@ class PeerInfo(Streamable):
         return key
 
     def get_group(self):
-        #TODO: Port everything from Bitcoin.
+        # TODO: Port everything from Bitcoin.
         ipv4 = 1
         try:
             ip = ipaddress.IPv4Address(
@@ -45,4 +45,3 @@ class PeerInfo(Streamable):
             ipv4 = 0
         group = bytes([ipv4]) + ip.packed[:2]
         return group
-        
