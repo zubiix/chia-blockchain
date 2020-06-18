@@ -3,9 +3,9 @@ import concurrent
 import logging
 import traceback
 import time
-from asyncio import Event
+import random
 from pathlib import Path
-from typing import AsyncGenerator, Dict, List, Optional, Tuple, Type, Callable
+from typing import AsyncGenerator, Dict, List, Optional, Tuple, Callable
 
 import aiosqlite
 from chiabip158 import PyBIP158
@@ -96,13 +96,7 @@ class FullNode:
         self.db_path = path_from_root(root_path, config["database_path"])
         mkdir(self.db_path.parent)
 
-    @classmethod
-    async def create(cls: Type, *args, **kwargs):
-        _ = cls(*args, **kwargs)
-        await _.start()
-        return _
-
-    async def start(self):
+    async def _start(self):
         # create the store (db) and full node instance
         self.connection = await aiosqlite.connect(self.db_path)
         self.block_store = await BlockStore.create(self.connection)
@@ -121,8 +115,13 @@ class FullNode:
         self.mempool_manager = MempoolManager(self.coin_store, self.constants)
         await self.mempool_manager.new_tips(await self.blockchain.get_full_tips())
         self.state_changed_callback = None
+        uncompact_interval = self.config["send_uncompact_interval"]
+        if uncompact_interval > 0:
+            self.broadcast_uncompact_task = asyncio.create_task(
+                self.broadcast_uncompact_blocks(uncompact_interval)
+            )
 
-    def set_global_connections(self, global_connections: PeerConnections):
+    def _set_global_connections(self, global_connections: PeerConnections):
         self.global_connections = global_connections
 
     def _set_server(self, server: ChiaServer):
@@ -328,7 +327,7 @@ class FullNode:
             f"Tip block {tip_block.header_hash} tip height {tip_block.height}"
         )
 
-        self.sync_store.set_potential_hashes_received(Event())
+        self.sync_store.set_potential_hashes_received(asyncio.Event())
 
         sleep_interval = 10
         total_time_slept = 0
@@ -859,6 +858,84 @@ class FullNode:
         self.log.warning(f"Rejected compact PoT Request {reject}")
         for _ in []:
             yield _
+
+    # Periodically scans for blocks with non compact proof of time
+    # (witness_type != 0) and sends them to the connected timelords.
+    async def broadcast_uncompact_blocks(
+        self, uncompact_interval, delivery: Delivery = Delivery.BROADCAST
+    ):
+        min_height = 1
+        while not self._shut_down:
+            while self.sync_store.get_sync_mode():
+                if self._shut_down:
+                    return
+                await asyncio.sleep(30)
+
+            broadcast_list: List = []
+            new_min_height = None
+            max_height = self.blockchain.lca_block.height
+            uncompact_blocks = 0
+            self.log.info("Scanning the blockchain for uncompact blocks.")
+
+            for h in range(min_height, max_height):
+                if self._shut_down:
+                    return
+                blocks: List[FullBlock] = await self.block_store.get_blocks_at(
+                    [uint32(h)]
+                )
+                for block in blocks:
+                    assert block.proof_of_time is not None
+                    if block.header_hash not in self.blockchain.headers:
+                        continue
+
+                    if block.proof_of_time.witness_type != 0:
+                        challenge_msg = timelord_protocol.ChallengeStart(
+                            block.proof_of_time.challenge_hash, block.weight,
+                        )
+                        pos_info_msg = timelord_protocol.ProofOfSpaceInfo(
+                            block.proof_of_time.challenge_hash,
+                            block.proof_of_time.number_of_iterations,
+                        )
+                        broadcast_list.append((challenge_msg, pos_info_msg,))
+                        # Scan only since the first uncompact block we know about.
+                        # No block earlier than this will be uncompact in the future,
+                        # unless a reorg happens. The range to scan next time
+                        # is always at least 200 blocks, to protect against reorgs.
+                        if uncompact_blocks == 0 and h <= max(1, max_height - 200):
+                            new_min_height = h
+                        uncompact_blocks += 1
+
+            if new_min_height is None:
+                # Every block is compact, but we still keep at least 200 blocks to iterate.
+                new_min_height = max(1, max_height - 200)
+            min_height = new_min_height
+
+            self.log.info(f"Collected {uncompact_blocks} uncompact blocks.")
+            if len(broadcast_list) > 50:
+                random.shuffle(broadcast_list)
+                broadcast_list = broadcast_list[:50]
+            if self.sync_store.get_sync_mode():
+                continue
+            if self.server is not None:
+                for challenge_msg, pos_info_msg in broadcast_list:
+                    self.server.push_message(
+                        OutboundMessage(
+                            NodeType.TIMELORD,
+                            Message("challenge_start", challenge_msg),
+                            delivery,
+                        )
+                    )
+                    self.server.push_message(
+                        OutboundMessage(
+                            NodeType.TIMELORD,
+                            Message("proof_of_space_info", pos_info_msg),
+                            delivery,
+                        )
+                    )
+            self.log.info(
+                f"Broadcasted {len(broadcast_list)} uncompact blocks to timelords."
+            )
+            await asyncio.sleep(uncompact_interval)
 
     @api_request
     async def new_unfinished_block(
@@ -1484,7 +1561,7 @@ class FullNode:
                         yield ret_msg
                 except asyncio.CancelledError:
                     self.log.error("Syncing failed, CancelledError")
-                except BaseException as e:
+                except Exception as e:
                     tb = traceback.format_exc()
                     self.log.error(f"Error with syncing: {type(e)}{tb}")
                 finally:
@@ -1697,7 +1774,6 @@ class FullNode:
     ) -> OutboundMessageGenerator:
         # Ignore if syncing
         if self.sync_store.get_sync_mode():
-            cost = None
             status = MempoolInclusionStatus.FAILED
             error: Optional[Err] = Err.UNKNOWN
         else:

@@ -3,16 +3,16 @@ from setuptools import setup
 
 dependencies = [
     "aiter==0.13.20191203",  # Used for async generator tools
-    "blspy==0.1.27",  # Signature library
+    "blspy==0.1.28",  # Signature library
     "cbor2==5.1.0",  # Used for network wire format
     "clvm==0.4",  # contract language
     "PyYAML==5.3.1",  # Used for config file format
     "aiosqlite==0.13.0",  # asyncio wrapper for sqlite, to store blocks
     "aiohttp==3.6.2",  # HTTP server for full node rpc
     "colorlog==4.1.0",  # Adds color to logs
-    "chiavdf==0.12.16",  # timelord and vdf verification
+    "chiavdf==0.12.18",  # timelord and vdf verification
     "chiabip158==0.14",  # bip158-style wallet filters
-    "chiapos==0.12.21",  # proof of space
+    "chiapos==0.12.22",  # proof of space
     "sortedcontainers==2.1.0",  # For maintaining sorted mempools
     "websockets==8.1.0",  # For use in wallet RPC and electron UI
     "clvm-tools==0.1.1",  # clvm compiler tools
@@ -21,6 +21,7 @@ dependencies = [
     "keyring_jeepney==0.2",
     "keyrings.cryptfile==1.3.4",
     "cryptography==2.9.2", #Python cryptography library for TLS
+    "concurrent-log-handler==0.9.16",  # Log to a file concurrently and rotate logs
 ]
 
 upnp_dependencies = [
@@ -40,7 +41,7 @@ kwargs = dict(
     name="chia-blockchain",
     author="Mariano Sorgente",
     author_email="mariano@chia.net",
-    description="Chia proof of space plotting, proving, and verifying (wraps C++)",
+    description="Chia blockchain full node, farmer, timelord, and wallet.",
     url="https://chia.net/",
     license="Apache License",
     python_requires=">=3.7, <4",
