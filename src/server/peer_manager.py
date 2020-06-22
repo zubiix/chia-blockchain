@@ -13,6 +13,7 @@ TRIED_BUCKET_COUNT = 256
 NEW_BUCKET_COUNT = 1024
 BUCKET_SIZE = 64
 TRIED_COLLISION_SIZE = 10
+NEW_BUCKETS_PER_ADDRESS = 8
 
 
 # This is a Python port from 'CAddrInfo' class from Bitcoin core code.
@@ -218,7 +219,7 @@ class AddressManager:
         # currently-connected peers.
 
         # if it is already in the tried set, don't do anything else
-        if info.fInTried:
+        if info.is_tried:
             return
 
         # find a bucket it is in now
@@ -259,42 +260,56 @@ class AddressManager:
     def add_to_new_table_(self, addr, source, nTimePenalty):
         fNew = False
         (info, node_id) = self.find_(addr)
-        # TODO: Implement later penalty.
-        nTimePenalty = 0
+        if (
+            info.peer_info.host == addr.host
+            and info.peer_info.port == addr.port
+        ):
+            nTimePenalty = 0
 
         if info is not None:
-            # TODO: Port this.
-            """// periodically update nTime
-            bool fCurrentlyOnline = (GetAdjustedTime() - addr.nTime < 24 * 60 * 60);
-            int64_t nUpdateInterval = (fCurrentlyOnline ? 60 * 60 : 24 * 60 * 60);
-            if (addr.nTime && (!pinfo->nTime || pinfo->nTime < addr.nTime - nUpdateInterval - nTimePenalty))
-                pinfo->nTime = std::max((int64_t)0, addr.nTime - nTimePenalty);
+            # periodically update nTime
+            currently_online = time.time() - addr.nTime < 24 * 60 * 60
+            update_interval = 60 * 60 if currently_online else 24 * 60 * 60
+            if (
+                addr.nTime is not None
+                and (
+                    info.nTime is None
+                    or info.nTime < addr.nTime - update_interval - nTimePenalty
+                )
+            ):
+                info.nTime = max(0, addr.nTime - nTimePenalty)
 
-            // add services
-            pinfo->nServices = ServiceFlags(pinfo->nServices | addr.nServices);
+            # add services
+            # pinfo->nServices = ServiceFlags(pinfo->nServices | addr.nServices);
 
-            // do not update if no new information is present
-            if (!addr.nTime || (pinfo->nTime && addr.nTime <= pinfo->nTime))
-                return false;
+            # do not update if no new information is present
+            if (
+                addr.nTime is None
+                or (
+                    info.nTime is not None
+                    and addr.nTime <= info.nTime
+                )
+            ):
+                return False
 
-            // do not update if the entry was already in the "tried" table
-            if (pinfo->fInTried)
-                return false;
+            # do not update if the entry was already in the "tried" table
+            if info.is_tried:
+                return False
 
-            // do not update if the max reference count is reached
-            if (pinfo->nRefCount == ADDRMAN_NEW_BUCKETS_PER_ADDRESS)
-                return false;
+            # do not update if the max reference count is reached
+            if info.nRefCount == NEW_BUCKETS_PER_ADDRESS:
+                return False
 
-            // stochastic test: previous nRefCount == N: 2^N times harder to increase it
-            int nFactor = 1;
-            for (int n = 0; n < pinfo->nRefCount; n++)
-                nFactor *= 2;
-            if (nFactor > 1 && (insecure_rand.randrange(nFactor) != 0))
-                return false;
-            """
+            # stochastic test: previous nRefCount == N: 2^N times harder to increase it
+            factor = (1 << info.nRefCount)
+            if (
+                factor > 1
+                and randrange(factor) != 0
+            ):
+                return False
         else:
             (info, node_id) = self.create_(addr, source)
-            info.Time = max(0, info.nTime - nTimePenalty)
+            info.nTime = max(0, info.nTime - nTimePenalty)
             self.nNew += 1
             self.fNew = True
 
@@ -452,6 +467,23 @@ class AddressManager:
         if nTime - info.nTime > update_interval:
             info.nTime = nTime
 
+    async def mark_connected_(self, addr):
+        info, _ = self.find_(addr)
+        if info is None:
+            return
+
+        # check whether we are talking about the exact same CService (including same port)
+        if not (
+            info.peer_info.host == addr.host
+            and info.peer_info.port == addr.port
+        ):
+            return
+
+        # update info
+        update_interval = 20 * 60
+        if self.nTime - info.nTime > update_interval:
+            info.nTime = self.nTime
+
     async def add_to_new_table(self, addresses, source, penalty=0):
         async with self.lock:
             for addr in addresses:
@@ -487,5 +519,6 @@ class AddressManager:
         async with self.lock:
             return self.get_addr()
 
-    async def mark_connected(self):
-        raise RuntimeError("Not implemented.")
+    async def mark_connected(self, addr):
+        async with self.lock:
+            return self.mark_connected_(addr)
