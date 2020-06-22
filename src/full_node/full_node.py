@@ -7,6 +7,10 @@ import random
 from pathlib import Path
 from typing import AsyncGenerator, Dict, List, Optional, Tuple, Callable
 
+import tracemalloc
+import gc
+import objgraph
+
 import aiosqlite
 from chiabip158 import PyBIP158
 from chiapos import Verifier
@@ -95,6 +99,9 @@ class FullNode:
 
         self.db_path = path_from_root(root_path, config["database_path"])
         mkdir(self.db_path.parent)
+ 
+        tracemalloc.start(10)
+
 
     async def _start(self):
         # create the store (db) and full node instance
@@ -1750,6 +1757,30 @@ class FullNode:
 
         # Pseudo-message to close the connection
         yield OutboundMessage(NodeType.INTRODUCER, Message("", None), Delivery.CLOSE)
+
+
+        snapshot = tracemalloc.take_snapshot()
+        top_stats = snapshot.statistics('lineno')
+
+        for stat in top_stats[:5]:
+            self.log.info(stat)
+
+        top_stats = snapshot.statistics('traceback')
+
+        for stat in top_stats[:5]:
+            self.log.info(f"{stat.count} memory blocks: {stat.size / 1024} KiB")
+            for line in stat.traceback.format():
+                self.log.info(line)
+
+        self.log.info(f"Number of connections aka len(self.global_connections.get_connections()): {len(self.global_connections.get_connections())}")
+
+        og = objgraph.most_common_types(limit=120)
+        for nums in og:
+            self.log.info(nums)
+
+
+
+
 
         unconnected = conns.get_unconnected_peers(
             recent_threshold=self.config["recent_peer_threshold"]

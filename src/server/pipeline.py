@@ -74,20 +74,20 @@ async def initialize_pipeline(
 
     # Reads messages one at a time from the TCP connection
     messages_aiter = join_aiters(
-        map_aiter(connection_to_message, handshake_finished_1, 100)
+        map_aiter(connection_to_message, handshake_finished_1, 1000)
     )
 
     # Handles each message one at a time, and yields responses to send back or broadcast
     responses_aiter = join_aiters(
         map_aiter(
-            partial_func.partial_async_gen(handle_message, api), messages_aiter, 100,
+            partial_func.partial_async_gen(handle_message, api), messages_aiter, 1000,
         )
     )
 
     # Uses a forked aiter, and calls the on_connect function to send some initial messages
     # as soon as the connection is established
     on_connect_outbound_aiter = join_aiters(
-        map_aiter(connection_to_outbound, handshake_finished_2, 100)
+        map_aiter(connection_to_outbound, handshake_finished_2, 1000)
     )
 
     # Also uses the instance variable _outbound_aiter, which clients can use to send messages
@@ -104,7 +104,7 @@ async def initialize_pipeline(
 
     # For each outbound message, replicate for each peer that we need to send to
     expanded_messages_aiter = join_aiters(
-        map_aiter(expand_outbound_messages, responses_aiter, 100)
+        map_aiter(expand_outbound_messages, responses_aiter, 1000)
     )
 
     async def send():
